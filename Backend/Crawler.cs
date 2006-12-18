@@ -24,7 +24,7 @@ public enum DomainNavigation
 [Flags]
 public enum Download
 {
-  None=0, Unknown=0, Html=1, NonHtml=2, Everything=Html|NonHtml, TypeMask=Everything, PrioritizeHtml=4, NearFiles=8
+  None=0, Unknown=0, Html=1, NonHtml=2, TypeMask=Everything, Everything=Html|NonHtml, PrioritizeHtml=4, NearFiles=8
 }
 
 [Flags]
@@ -194,12 +194,8 @@ public sealed class Crawler : IDisposable
     get { return idleTimeout; }
     set
     {
-      if(value != idleTimeout)
-      {
-        if(value <= 0) throw new ArgumentOutOfRangeException();
-        idleTimeout = value;
-        UpdateServicePointProperties();
-      }
+      if(value <= 0) throw new ArgumentOutOfRangeException();
+      idleTimeout = value;
     }
   }
 
@@ -207,20 +203,17 @@ public sealed class Crawler : IDisposable
   {
     get
     {
-      AssertInitialized();
-      int bytesPerSecond = 0, measures = 0;
+      if(!IsInitialized) return 0;
+
+      int bytesPerSecond = 0;
       lock(threads)
       {
         foreach(ConnectionThread thread in threads)
         {
-          if(thread.IsRunning)
-          {
-            bytesPerSecond += thread.CurrentBytesPerSecond;
-            measures++;
-          }
+          if(thread.IsRunning) bytesPerSecond += thread.CurrentBytesPerSecond;
         }
       }
-      return measures == 0 ? 0 : bytesPerSecond / measures;
+      return bytesPerSecond;
     }
   }
 
@@ -228,7 +221,6 @@ public sealed class Crawler : IDisposable
   {
     get
     {
-      AssertInitialized();
       return currentActiveThreads;
     }
   }
@@ -237,7 +229,8 @@ public sealed class Crawler : IDisposable
   {
     get
     {
-      AssertInitialized();
+      if(!IsInitialized) return 0;
+
       int totalLinks = 0;
       lock(services)
       {
@@ -296,12 +289,8 @@ public sealed class Crawler : IDisposable
     get { return connsPerServer; }
     set
     {
-      if(value != connsPerServer)
-      {
-        if(value <= 0) throw new ArgumentOutOfRangeException();
-        connsPerServer = value;
-        UpdateServicePointProperties();
-      }
+      if(value <= 0) throw new ArgumentOutOfRangeException();
+      connsPerServer = value;
     }
   }
   
@@ -350,7 +339,7 @@ public sealed class Crawler : IDisposable
     get { return maxRedirects; }
     set
     {
-      if(value < 0) throw new ArgumentOutOfRangeException();
+      if(value <= 0) throw new ArgumentOutOfRangeException();
       maxRedirects = value;
     }
   }
@@ -381,6 +370,16 @@ public sealed class Crawler : IDisposable
   {
     get { return progress; }
     set { progress = value; }
+  }
+
+  public int ReadTimeout
+  {
+    get { return ioTimeout; }
+    set
+    {
+      if(value < 0) throw new ArgumentOutOfRangeException();
+      ioTimeout = value;
+    }
   }
 
   public bool RewriteLinks
@@ -435,19 +434,14 @@ public sealed class Crawler : IDisposable
     Dispose(false);
   }
 
-  public void AddBaseUri(string uriString)
-  {
-    AddBaseUri(new Uri(uriString));
-  }
-
-  public void AddBaseUri(Uri uri)
+  public void AddBaseUri(Uri uri, bool enqueue)
   {
     if(uri == null) throw new ArgumentNullException();
     if(!uri.IsAbsoluteUri) throw new ArgumentNullException("The uri must be absolute.");
     AssertInitialized();
 
     lock(baseUris) baseUris.Add(uri);
-    EnqueueUri(uri, null, 0, LinkType.Link);
+    if(enqueue) EnqueueUri(uri, null, 0, LinkType.Link, true);
   }
 
   public void ClearUris()
@@ -486,6 +480,7 @@ public sealed class Crawler : IDisposable
     writer.Add(maxDepth);
     writer.Add(retries);
     writer.Add(maxQueuedLinks);
+    writer.Add(ioTimeout);
     writer.Add(transferTimeout);
     writer.Add(maxRedirects);
     writer.Add(maxQueryStrings);
@@ -563,6 +558,11 @@ public sealed class Crawler : IDisposable
         }
       }
     }
+  }
+
+  public void EnqueueUri(Uri uri)
+  {
+    EnqueueUri(uri, null, 0, LinkType.Link, true);
   }
 
   #region Mime overrides
@@ -673,11 +673,6 @@ public sealed class Crawler : IDisposable
       get { return service; }
     }
 
-    public ServicePoint ServicePoint
-    {
-      get { return ServicePoint; }
-    }
-
     public void Start(Service service)
     {
       if(shouldQuit) throw new InvalidOperationException("The thread is in the process of quitting.");
@@ -747,6 +742,7 @@ public sealed class Crawler : IDisposable
         service = null;
       }
 
+      lastBytesPerSecond = 0;
       thread = null;
       shouldQuit = false;
     }
@@ -756,12 +752,14 @@ public sealed class Crawler : IDisposable
       while(!shouldQuit)
       {
         CleanupRequest();
-        if(!service.TryDequeue(out resource)) // if the service has no more resources for us to process...
+        if(service.CurrentConnections > crawler.MaxConnectionsPerServer || // if the service has too many connections,
+           !service.TryDequeue(out resource)) // or the service has no more resources for us to process...
         {
           crawler.OnThreadIdle(this); // the crawler will re-associate, stop, or terminate this thread
           continue;
         }
 
+        string localFileName = null;
         try
         {
           bool crawlerWantsEverything = (crawler.Download & Download.TypeMask) == Download.Everything;
@@ -810,18 +808,19 @@ public sealed class Crawler : IDisposable
           {
             crawler.SetServicePointProperties(ftpRequest.ServicePoint);
             ftpRequest.ReadWriteTimeout =
-              crawler.TransferTimeout == 0 ? Timeout.Infinite : crawler.TransferTimeout*1000;
+              crawler.ReadTimeout == 0 ? Timeout.Infinite : crawler.ReadTimeout*1000;
             ftpRequest.UsePassive = crawler.PassiveFtp;
           }
 
           // at this point, we know we probably want the data, so create the file and download it
-          string localFileName = service.GetLocalFileName(resource.Uri, resource.type);
+          localFileName = service.GetLocalFileName(resource.Uri, resource.type);
           // if the filename is null, it means this resource is not wanted. this can happen for a file with too many
           if(localFileName == null) continue; // query strings (to prevent the crawler from crawling it infinitely)
 
           resource.localPath = localFileName;
           crawler.OnProgress(ref resource, ProgressType.DownloadStarted);
 
+          request.Timeout = crawler.TransferTimeout == 0 ? Timeout.Infinite : crawler.TransferTimeout*1000;
           response = request.GetResponse();
 
           HttpWebResponse httpResponse = response as HttpWebResponse;
@@ -889,11 +888,36 @@ public sealed class Crawler : IDisposable
         {
           bool isFatal = (++resource.retries > crawler.MaxRetries && crawler.MaxRetries != 0) || IsFatalError(ex);
           crawler.OnErrorOccurred(ref resource, ex, isFatal);
-          if(!isFatal) service.Enqueue(ref resource, true);
+          if(!isFatal)
+          {
+            service.Enqueue(ref resource, true);
+          }
+          else if(localFileName != null)
+          {
+            try { File.Delete(localFileName); } catch { }
+          }
+        }
+        catch(IOException ex) // an IO exception occurs if the other side closes the connection, for instance
+        {
+          bool isFatal = ++resource.retries > crawler.MaxRetries && crawler.MaxRetries != 0;
+          crawler.OnErrorOccurred(ref resource, ex, isFatal);
+          if(!isFatal)
+          {
+            service.Enqueue(ref resource, true);
+          }
+          else if(localFileName != null)
+          {
+            try { File.Delete(localFileName); }
+            catch { }
+          }
         }
         catch(Exception ex)
         {
           crawler.OnErrorOccurred(ref resource, ex, true);
+          if(localFileName != null)
+          {
+            try { File.Delete(localFileName); } catch { }
+          }
         }
       }
       
@@ -942,11 +966,13 @@ public sealed class Crawler : IDisposable
       Uri uri = GetAbsoluteLinkUrl(baseUri, GetLinkMatchGroup(m, out type));
       if(uri != null)
       {
-        try { crawler.EnqueueUri(uri, referrer, resource.Depth+1, type); }
+        try { crawler.EnqueueUri(uri, referrer, resource.Depth+1, type, false); }
         catch(UriFormatException) { }
       }
     }
 
+    // TODO: scan inside CSS files (anything coming from a CSS link or having a text/css mime type).
+    // scan inside javascript too.
     void ScanForLinks(string html)
     {
       Uri baseUri = resource.Uri; // use the resource uri as the base uri by default
@@ -1002,6 +1028,7 @@ public sealed class Crawler : IDisposable
     void SetupHttpRequest(HttpWebRequest httpRequest)
     {
       crawler.SetServicePointProperties(httpRequest.ServicePoint);
+
       if(crawler.UseCookies) service.LoadCookies(httpRequest);
 
       string referrer = resource.Referrer;
@@ -1021,7 +1048,8 @@ public sealed class Crawler : IDisposable
         httpRequest.Headers[HttpRequestHeader.AcceptLanguage] = crawler.PreferredLanguage;
       }
       
-      httpRequest.ReadWriteTimeout = crawler.TransferTimeout == 0 ? Timeout.Infinite : crawler.TransferTimeout*1000;
+      httpRequest.ReadWriteTimeout = crawler.ReadTimeout == 0 ? Timeout.Infinite : crawler.ReadTimeout*1000;
+      httpRequest.MaximumAutomaticRedirections = crawler.MaxRedirects;
     }
 
     string RewriteHtmlLink(Match m, Uri baseUri, string referrer, string localDir)
@@ -1036,7 +1064,7 @@ public sealed class Crawler : IDisposable
           string prefix = m.Value.Substring(0, g.Index-m.Index);
           string suffix = m.Value.Substring(g.Index-m.Index+g.Length);
           string relUri = null;
-          if(crawler.EnqueueUri(absUri, referrer, resource.Depth+1, type))
+          if(crawler.EnqueueUri(absUri, referrer, resource.Depth+1, type, false))
           {
             relUri = crawler.GetRelativeUri(localDir, absUri, type);
           }
@@ -1137,12 +1165,12 @@ public sealed class Crawler : IDisposable
 
     static Regex baseRe = new Regex(@"(?<=<base\s[^>]*href\s*=\s*""?)[^"">]+", RegexOptions.Compiled |
                                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    static Regex linkRe = new Regex(@"<(?:a[^>]*?\shref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
-                                          (?:i?frame)[^>]*?\ssrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
-                                          (?:img|script|embed)[^>]*?\ssrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
-                                          link[^>]*?\shref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
-                                          object[^>]*?\sdata\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          applet[^>]*?\s(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
+    static Regex linkRe = new Regex(@"<(?:a\b[^>]*?\bhref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
+                                          (?:img|script|embed)\b[^>]*?\bsrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
+                                          i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
+                                          link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
+                                          applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
+                                          object\b[^>]*?\bdata\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
                                           param\s+name=[""'](?:src|href|file|filename|data)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
@@ -1185,6 +1213,15 @@ public sealed class Crawler : IDisposable
       while(count-- > 0) files.Add(reader.ReadStringWithLength(), new LocalFileInfo(reader));
 
       InitializeBaseDirectory();
+    }
+    
+    static Service()
+    {
+      badChars = new char[Path.InvalidPathChars.Length+2];
+      badChars[0] = Path.DirectorySeparatorChar;
+      badChars[1] = Path.AltDirectorySeparatorChar;
+      Path.InvalidPathChars.CopyTo(badChars, 2);
+      Array.Sort(badChars);
     }
 
     public string BaseDirectory
@@ -1244,7 +1281,7 @@ public sealed class Crawler : IDisposable
         string query = crawler.EnableUrlHacks ? uri.Query : NormalizeQuery(uri.Query);
         if(!string.IsNullOrEmpty(query))
         {
-          key += "?"+query;
+          key += query;
         }
 
         lock(queued)
@@ -1362,14 +1399,8 @@ public sealed class Crawler : IDisposable
     {
       writer.AddStringWithLength(baseUri.ToString());
 
-      List<Resource> res = new List<Resource>(resources.Count);
-      while(resources.Count != 0) res.Add(resources.Dequeue());
-      writer.Add(res.Count);
-      foreach(Resource resource in res)
-      {
-        resources.Enqueue(resource);
-        resource.Write(writer);
-      }
+      writer.Add(resources.Count);
+      foreach(Resource resource in resources) resource.Write(writer);
 
       writer.Add(files.Count);
       foreach(KeyValuePair<string,LocalFileInfo> pair in files)
@@ -1451,6 +1482,10 @@ public sealed class Crawler : IDisposable
     {
       if(baseUriPath.StartsWith("/")) baseUriPath = baseUriPath.Substring(1);
 
+      string[] bits = baseUriPath.Split('/');
+      for(int i=0; i<bits.Length; i++) bits[i] = UrlSafeDecode(bits[i]);
+      baseUriPath = string.Join("/", bits);
+
       string directory = this.baseDir;
       string fileName  = null, extension = GetExtension(baseUriPath, type);
 
@@ -1525,8 +1560,8 @@ public sealed class Crawler : IDisposable
       baseDir = Path.Combine(crawler.BaseDirectory, dirName);
     }
 
-    // if it looks like a query string with key/value pairs (ie. a=A&b=B), then sort the keys so that
-    // id=5&page=1 and page=1&id=5 are considered equal.
+    // if it looks like a query string with key/value pairs (ie. ?a=A&b=B), then sort the keys so that
+    // ?id=5&page=1 and ?page=1&id=5 are considered identical.
     static string NormalizeQuery(string query)
     {
       if(string.IsNullOrEmpty(query)) return null;
@@ -1536,7 +1571,7 @@ public sealed class Crawler : IDisposable
       
       List<KeyValuePair<string,string>> pairs = new List<KeyValuePair<string,string>>();
 
-      CaptureCollection keys = m.Groups["key"].Captures, values = m.Groups["values"].Captures;
+      CaptureCollection keys = m.Groups["key"].Captures, values = m.Groups["value"].Captures;
       int stringLength = 0;
       for(int i=0; i<keys.Count; i++)
       {
@@ -1548,7 +1583,9 @@ public sealed class Crawler : IDisposable
 
       pairs.Sort(QueryKeyComparer.Instance);
       
-      StringBuilder sb = new StringBuilder(stringLength);
+      StringBuilder sb = new StringBuilder(stringLength+1);
+      sb.Append('?');
+
       bool sep = false;
       foreach(KeyValuePair<string,string> pair in pairs)
       {
@@ -1573,6 +1610,28 @@ public sealed class Crawler : IDisposable
       return new string(result);
     }
 
+    static string UrlSafeDecode(string encodedFile)
+    {
+      string unencodedFile = Uri.UnescapeDataString(encodedFile);
+
+      for(int i=0; i<unencodedFile.Length; i++)
+      {
+        if(Array.BinarySearch(badChars, unencodedFile[i]) >= 0)
+        {
+          char[] safeChars = new char[unencodedFile.Length];
+          for(int j=0; j<i; j++) safeChars[j] = unencodedFile[j];
+          for(; i<safeChars.Length; i++)
+          {
+            safeChars[i] = Array.BinarySearch(badChars, unencodedFile[i]) >= 0 ? '_' : unencodedFile[i];
+          }
+          unencodedFile = new string(safeChars);
+          break;
+        }
+      }
+      
+      return unencodedFile;
+    }
+
     readonly Crawler crawler;
     readonly Uri baseUri;
     readonly Queue<Resource> resources = new Queue<Resource>();
@@ -1583,8 +1642,9 @@ public sealed class Crawler : IDisposable
     internal int connections;
     readonly bool external;
 
-    static Regex queryRe = new Regex(@"^(?<key>[\w\-.!~*'()]+)=(?<value>[\w\-.!~*'()]*)(?:&(?<key>[\w\-.!~*'()]+)=(?<value>[\w\-.!~*'()]*))*&?$",
-                                     RegexOptions.Compiled | RegexOptions.ECMAScript);
+    static readonly Regex queryRe = new Regex(@"^\?(?<key>[\w\-/.!~*'()]+)=(?<value>[\w\-/.!~*'()]*)(?:&(?<key>[\w\-/.!~*'()]+)=(?<value>[\w\-/.!~*'()]*))*&?$",
+                                              RegexOptions.Compiled | RegexOptions.ECMAScript);
+    static readonly char[] badChars;
   }
   #endregion
 
@@ -1689,7 +1749,8 @@ public sealed class Crawler : IDisposable
           }
 
           StartThread(thread, service);
-        } while(service.CurrentConnections < MaxConnectionsPerServer && currentActiveThreads < MaxConnections);
+        } while(currentActiveThreads < MaxConnections && service.CurrentConnections < MaxConnectionsPerServer &&
+                service.ResourceCount > 0 && idleThread < MaxConnections);
       }
     }
   }
@@ -1748,10 +1809,12 @@ public sealed class Crawler : IDisposable
     disposed = true;
   }
 
-  bool EnqueueUri(Uri uri, string referrer, int depth, LinkType type)
+  bool EnqueueUri(Uri uri, string referrer, int depth, LinkType type, bool force)
   {
     bool external;
-    if((MaxDepth == 0 || depth <= MaxDepth) && IsUriAllowed(uri, type != LinkType.Link, out external))
+    if(IsUriAllowed(uri, type != LinkType.Link, out external) &&
+       (MaxDepth == 0 || depth <= MaxDepth) && (MaxQueuedLinks == 0 || CurrentLinksQueued < MaxQueuedLinks) ||
+       force)
     {
       Resource resource = new Resource(uri, referrer, depth, type, external);
       Service service = GetService(uri, external);
@@ -1819,6 +1882,7 @@ public sealed class Crawler : IDisposable
       sb.Append(newBits[i]);
     }
 
+    if(!string.IsNullOrEmpty(absUri.Query)) sb.Append(absUri.Query);
     if(!string.IsNullOrEmpty(absUri.Fragment)) sb.Append(absUri.Fragment);
     return sb.ToString();
   }
@@ -1860,7 +1924,7 @@ public sealed class Crawler : IDisposable
     thread.Stop();
   }
 
-  bool IsUriAllowed(Uri uri, bool isResource, out bool isExternal)
+  bool IsUriAllowed(Uri uri, bool ignoreUriRestrictions, out bool isExternal)
   {
     isExternal = false;
 
@@ -1913,9 +1977,10 @@ public sealed class Crawler : IDisposable
       }
     }
     
-    isExternal = true;
+    isExternal = true; // if we got here, it's an external link (outside all base uris)
 
-    return isResource && DownloadNearFiles; // if it's external but it's a resource of an internal file, then it's OK
+    // if it's external but it's a resource of an internal file, then it's OK
+    return ignoreUriRestrictions && DownloadNearFiles;
   }
 
   void OnErrorOccurred(ref Resource resource, Exception ex, bool isFatal)
@@ -1968,21 +2033,6 @@ public sealed class Crawler : IDisposable
     thread.Start(service);
   }
 
-  void UpdateServicePointProperties()
-  {
-    if(IsInitialized)
-    {
-      lock(threads)
-      {
-        foreach(ConnectionThread thread in threads)
-        {
-          ServicePoint point = thread.ServicePoint;
-          if(point != null) SetServicePointProperties(point);
-        }
-      }
-    }
-  }
-
   bool WantResource(Download resourceType)
   {
     Debug.Assert(resourceType == Download.Html || resourceType == Download.NonHtml);
@@ -1999,8 +2049,8 @@ public sealed class Crawler : IDisposable
   Download download = Download.Everything | Download.PrioritizeHtml;
   StringComparison pathComparison = StringComparison.OrdinalIgnoreCase;
   ProgressType progress = ProgressType.All;
-  int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, maxDepth = 0, retries = 1, maxQueuedLinks,
-      transferTimeout = 60, maxRedirects = 20, currentActiveThreads, maxQueryStrings = 250;
+  int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, maxDepth = 50, retries = 1, maxQueuedLinks,
+      ioTimeout = 60, transferTimeout = 1800, maxRedirects = 20, currentActiveThreads, maxQueryStrings = 500;
   bool rewriteLinks = true, useCookies = true, errorFiles, urlHacks, passiveFtp = true, disposed, running;
 
   static Regex domainRe = new Regex(@"[\w-]+\.[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
