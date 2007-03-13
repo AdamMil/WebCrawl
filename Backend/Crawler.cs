@@ -6,6 +6,8 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using BinaryReader = AdamMil.IO.BinaryReader;
+using BinaryWriter = AdamMil.IO.BinaryWriter;
 
 namespace WebCrawl.Backend
 {
@@ -71,18 +73,18 @@ public struct Resource
     retries      = 0;
   }
 
-  internal Resource(IOReader reader)
+  internal Resource(BinaryReader reader)
   {
     referrer = reader.ReadStringWithLength();
     localPath = reader.ReadStringWithLength();
     responseText = reader.ReadStringWithLength();
     contentType = reader.ReadStringWithLength();
     uri = new Uri(reader.ReadStringWithLength());
-    responseCode = (HttpStatusCode)reader.ReadInt();
-    depth = reader.ReadInt();
-    retries = reader.ReadInt();
-    status = (ProgressType)reader.ReadInt();
-    type = (Crawler.LinkType)reader.ReadInt();
+    responseCode = (HttpStatusCode)reader.ReadInt32();
+    depth = reader.ReadInt32();
+    retries = reader.ReadInt32();
+    status = (ProgressType)reader.ReadInt32();
+    type = (Crawler.LinkType)reader.ReadInt32();
     external = reader.ReadBool();
   }
 
@@ -141,19 +143,19 @@ public struct Resource
     get { return Uri != null && Uri.IsAbsoluteUri; }
   }
 
-  internal void Write(IOWriter writer)
+  internal void Write(BinaryWriter writer)
   {
-    writer.AddStringWithLength(referrer);
-    writer.AddStringWithLength(localPath);
-    writer.AddStringWithLength(responseText);
-    writer.AddStringWithLength(contentType);
-    writer.AddStringWithLength(uri.ToString());
-    writer.Add((int)responseCode);
-    writer.Add(depth);
-    writer.Add(retries);
-    writer.Add((int)status);
-    writer.Add((int)type);
-    writer.Add(external);
+    writer.WriteStringWithLength(referrer);
+    writer.WriteStringWithLength(localPath);
+    writer.WriteStringWithLength(responseText);
+    writer.WriteStringWithLength(contentType);
+    writer.WriteStringWithLength(uri.ToString());
+    writer.Write((int)responseCode);
+    writer.Write(depth);
+    writer.Write(retries);
+    writer.Write((int)status);
+    writer.Write((int)type);
+    writer.Write(external);
   }
   
   internal string referrer, localPath, responseText, contentType;
@@ -456,7 +458,7 @@ public sealed class Crawler : IDisposable
     baseUris.Clear();
   }
 
-  public void SaveState(IOWriter writer)
+  public void SaveState(BinaryWriter writer)
   {
     AssertInitialized();
     if(running || CurrentDownloadCount != 0)
@@ -464,44 +466,44 @@ public sealed class Crawler : IDisposable
       throw new InvalidOperationException("The crawler must be fully stopped to save its state.");
     }
 
-    writer.AddStringWithLength(userAgent);
-    writer.AddStringWithLength(language);
-    writer.AddStringWithLength(defaultReferrer);
-    writer.AddStringWithLength(baseDir);
+    writer.WriteStringWithLength(userAgent);
+    writer.WriteStringWithLength(language);
+    writer.WriteStringWithLength(defaultReferrer);
+    writer.WriteStringWithLength(baseDir);
     
-    writer.Add((int)dirNav);
-    writer.Add((int)domainNav);
-    writer.Add((int)download);
-    writer.Add((int)pathComparison);
-    writer.Add((int)progress);
-    writer.Add(idleTimeout);
-    writer.Add(connsPerServer);
-    writer.Add(maxConnections);
-    writer.Add(maxDepth);
-    writer.Add(retries);
-    writer.Add(maxQueuedLinks);
-    writer.Add(ioTimeout);
-    writer.Add(transferTimeout);
-    writer.Add(maxRedirects);
-    writer.Add(maxQueryStrings);
-    writer.Add(rewriteLinks);
-    writer.Add(useCookies);
-    writer.Add(errorFiles);
-    writer.Add(urlHacks);
-    writer.Add(passiveFtp);
+    writer.Write((int)dirNav);
+    writer.Write((int)domainNav);
+    writer.Write((int)download);
+    writer.Write((int)pathComparison);
+    writer.Write((int)progress);
+    writer.Write(idleTimeout);
+    writer.Write(connsPerServer);
+    writer.Write(maxConnections);
+    writer.Write(maxDepth);
+    writer.Write(retries);
+    writer.Write(maxQueuedLinks);
+    writer.Write(ioTimeout);
+    writer.Write(transferTimeout);
+    writer.Write(maxRedirects);
+    writer.Write(maxQueryStrings);
+    writer.Write(rewriteLinks);
+    writer.Write(useCookies);
+    writer.Write(errorFiles);
+    writer.Write(urlHacks);
+    writer.Write(passiveFtp);
 
-    writer.Add(mimeOverrides.Count);
+    writer.Write(mimeOverrides.Count);
     foreach(KeyValuePair<string,string> pair in mimeOverrides)
     {
-      writer.AddStringWithLength(pair.Key);
-      writer.AddStringWithLength(pair.Value);
+      writer.WriteStringWithLength(pair.Key);
+      writer.WriteStringWithLength(pair.Value);
     }
     
-    writer.Add(services.Count);
+    writer.Write(services.Count);
     foreach(Service service in services.Values) service.Write(writer);
     
-    writer.Add(baseUris.Count);
-    foreach(Uri uri in baseUris) writer.AddStringWithLength(uri.ToString());
+    writer.Write(baseUris.Count);
+    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.ToString());
   }
 
   public void Start()
@@ -995,7 +997,7 @@ public sealed class Crawler : IDisposable
       m = styleRe.Match(html); // now look for style blocks
       while(m.Success)
       {
-        Match linkMatch = styleLinkRe.Match(m.Groups[1].Value); // and links within the style blocks
+        Match linkMatch = styleLinkRe.Match(m.Groups["css"].Value); // and links within the style blocks
         while(linkMatch.Success)
         {
           HandleLinkMatch(baseUri, referrer, linkMatch);
@@ -1174,7 +1176,8 @@ public sealed class Crawler : IDisposable
                                           param\s+name=[""'](?:src|href|file|filename|data)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
-    static Regex styleRe = new Regex(@"<style>(.*?)</style>", RegexOptions.Compiled | RegexOptions.IgnoreCase |
+    static Regex styleRe = new Regex(@"<style>(?<css>.*?)</style>|<[^>]+\sstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
+                                     RegexOptions.Compiled | RegexOptions.IgnoreCase |
                                      RegexOptions.CultureInvariant | RegexOptions.Singleline);
     static Regex scriptRe = new Regex(@"<script>(.*?)</script>", RegexOptions.Compiled | RegexOptions.IgnoreCase |
                                       RegexOptions.CultureInvariant | RegexOptions.Singleline);
@@ -1199,17 +1202,17 @@ public sealed class Crawler : IDisposable
       InitializeBaseDirectory();
     }
 
-    public Service(IOReader reader, Crawler crawler, bool external)
+    public Service(BinaryReader reader, Crawler crawler, bool external)
     {
       this.crawler  = crawler;
       this.external = external;
 
       baseUri = new Uri(reader.ReadStringWithLength());
 
-      int count = reader.ReadInt();
+      int count = reader.ReadInt32();
       while(count-- > 0) resources.Enqueue(new Resource(reader));
 
-      count = reader.ReadInt();
+      count = reader.ReadInt32();
       while(count-- > 0) files.Add(reader.ReadStringWithLength(), new LocalFileInfo(reader));
 
       InitializeBaseDirectory();
@@ -1395,17 +1398,17 @@ public sealed class Crawler : IDisposable
       }
     }
 
-    public void Write(IOWriter writer)
+    public void Write(BinaryWriter writer)
     {
-      writer.AddStringWithLength(baseUri.ToString());
+      writer.WriteStringWithLength(baseUri.ToString());
 
-      writer.Add(resources.Count);
+      writer.Write(resources.Count);
       foreach(Resource resource in resources) resource.Write(writer);
 
-      writer.Add(files.Count);
+      writer.Write(files.Count);
       foreach(KeyValuePair<string,LocalFileInfo> pair in files)
       {
-        writer.AddStringWithLength(pair.Key);
+        writer.WriteStringWithLength(pair.Key);
         pair.Value.Write(writer);
       }
     }
@@ -1414,11 +1417,11 @@ public sealed class Crawler : IDisposable
     {
       public LocalFileInfo(string fileName) { BasePath = fileName; Queries = null; }
 
-      public LocalFileInfo(IOReader reader)
+      public LocalFileInfo(BinaryReader reader)
       {
         BasePath = reader.ReadStringWithLength();
 
-        int count = reader.ReadInt();
+        int count = reader.ReadInt32();
         if(count == 0)
         {
           Queries = null;
@@ -1433,14 +1436,14 @@ public sealed class Crawler : IDisposable
       public string BasePath;
       public Dictionary<string,string> Queries;
       
-      public void Write(IOWriter writer)
+      public void Write(BinaryWriter writer)
       {
-        writer.AddStringWithLength(BasePath);
-        writer.Add(Queries == null ? 0 : Queries.Count);
+        writer.WriteStringWithLength(BasePath);
+        writer.Write(Queries == null ? 0 : Queries.Count);
         foreach(KeyValuePair<string,string> pair in Queries)
         {
-          writer.AddStringWithLength(pair.Key);
-          writer.AddStringWithLength(pair.Value);
+          writer.WriteStringWithLength(pair.Key);
+          writer.WriteStringWithLength(pair.Value);
         }
       }
     }
