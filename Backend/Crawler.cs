@@ -1173,7 +1173,8 @@ public sealed class Crawler : IDisposable
                                           link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
                                           applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
                                           object\b[^>]*?\bdata\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          param\s+name=[""'](?:src|href|file|filename|data)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
+                                          param\s+name=[""'](?:src|href|file|filename|data)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
+                                          \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
     static Regex styleRe = new Regex(@"<style>(?<css>.*?)</style>|<[^>]+\sstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
