@@ -41,7 +41,7 @@ public enum ProgressType
 
 public delegate void ContentFilter(string url, ref string content, ref string mimeType);
 public delegate string LocalPathCreator(string relativeUrl);
-public delegate void ProgressHandler(Resource resource);
+public delegate void ProgressHandler(Resource resource, string extraMessage);
 public delegate void SimpleEventHandler();
 public delegate Uri UriFilter(Uri uri);
 
@@ -574,6 +574,8 @@ public sealed class Crawler : IDisposable
           if(timeToWait < 0) timeToWait = 0;
         }
       }
+
+      currentActiveThreads = 0;
     }
   }
 
@@ -2065,15 +2067,21 @@ public sealed class Crawler : IDisposable
 
   void OnErrorOccurred(ref Resource resource, Exception ex, bool isFatal)
   {
-    OnProgress(ref resource, isFatal ? ProgressType.FatalErrorOccurred : ProgressType.NonFatalErrorOccurred);
+    OnProgress(ref resource, isFatal ? ProgressType.FatalErrorOccurred : ProgressType.NonFatalErrorOccurred,
+               ex.Message);
   }
 
   void OnProgress(ref Resource resource, ProgressType newStatus)
   {
+    OnProgress(ref resource, newStatus, null);
+  }
+
+  void OnProgress(ref Resource resource, ProgressType newStatus, string message)
+  {
     resource.status = newStatus;
     if(Progress != null && (ProgressFilter & newStatus) != 0)
     {
-      try { Progress(resource); }
+      try { Progress(resource, message); }
       catch { }
     }
   }

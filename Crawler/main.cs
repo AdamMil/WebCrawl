@@ -44,7 +44,7 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.5 copyright Adam Milazzo 2006");
+    Console.WriteLine("Crawler v. 0.6 copyright Adam Milazzo 2006");
 
     crawl.AddStandardMimeOverrides();
 
@@ -57,12 +57,12 @@ static class App
       {
         Console.Write("> ");
         string line = Console.ReadLine();
-        if(string.IsNullOrEmpty(line)) continue;
+        if(string.IsNullOrEmpty(line) || line[0] == '#') continue;
         
         Match match = cmdRe.Match(line);
         if(!match.Success)
         {
-          Console.WriteLine("Invalid command.");
+          Console.WriteLine("Unrecognized command '"+line+"'");
           continue;
         }
         
@@ -285,17 +285,20 @@ static class App
     return uri;
   }
 
-  static void crawl_Progress(Resource resource)
+  static void crawl_Progress(Resource resource, string message)
   {
     string prefix, suffix = null;
     switch(resource.Status)
     {
       case ProgressType.DownloadStarted: prefix = ". "; break;
       case ProgressType.DownloadFinished: prefix = "- "; break;
-      case ProgressType.NonFatalErrorOccurred: prefix = "? "; break;
+      case ProgressType.NonFatalErrorOccurred:
+        prefix = "? ";
+        suffix = " ("+resource.ResponseCode+" - "+message+")";
+        break;
       case ProgressType.FatalErrorOccurred:
         prefix = "! ";
-        suffix = " (from "+resource.Referrer+")";
+        suffix = " ('"+message+"' from "+resource.Referrer+")";
         break;
       case ProgressType.UrlQueued:
         prefix = "+["+resource.Depth+"] ";
