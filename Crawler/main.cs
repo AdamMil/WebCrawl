@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using WebCrawl.Backend;
 
 namespace WebCrawl
@@ -8,6 +9,9 @@ namespace WebCrawl
 
 static class App
 {
+  const RegexOptions UriRegexOptions =
+    RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture;
+
   static readonly Crawler crawl = new Crawler();
 
   static App()
@@ -53,37 +57,61 @@ static class App
       {
         Console.Write("> ");
         string line = Console.ReadLine();
-        if(line == null) continue;
-        line = line.Trim();
         if(string.IsNullOrEmpty(line)) continue;
         
-        string[] words = line.Split();
-        switch(words[0].ToLowerInvariant())
+        Match match = cmdRe.Match(line);
+        if(!match.Success)
+        {
+          Console.WriteLine("Invalid command.");
+          continue;
+        }
+        
+        string parameters = match.Groups[2].Value;
+        switch(match.Groups[1].Value.ToLowerInvariant())
         {
           case "addbase":
           {
-            Uri uri = GetUri("Base uri");
+            Uri uri = new Uri(parameters);
             if(uri != null) crawl.AddBaseUri(uri, true);
             break;
           }
 
           case "add":
           {
-            Uri uri = GetUri("Uri");
+            Uri uri = new Uri(parameters);
             if(uri != null) crawl.EnqueueUri(uri);
             break;
           }
 
-          case "setup":
-          {
-            string value = GetInput("Base output directory");
-            if(value != null)
+          case "filter":
+            if(string.IsNullOrEmpty(parameters) ||
+               parameters[0] != '-' && parameters[0] != '+' && parameters[0] != '*')
             {
-              crawl.Initialize(value);
+              Console.WriteLine("Usage: filter [+|-]<uriRegex>");
+              Console.WriteLine("       filter *<uriRegex> <replacement>");
+            }
+            else
+            {
+              AddFilter(parameters);
+            }
+            break;
+
+          case "remove":
+            if(string.IsNullOrEmpty(parameters)) Console.WriteLine("Usage: remove <uriRegex>");
+            else crawl.RemoveUris(new Regex(parameters, UriRegexOptions), false);
+            break;
+
+          case "setup":
+            if(string.IsNullOrEmpty(parameters))
+            {
+              Console.WriteLine("Usage: setup <outputDirectory>");
+            }
+            else
+            {
+              crawl.Initialize(parameters);
               Console.WriteLine("Crawler initialized. Add base URIs with 'addbase' and start it with 'start'.");
             }
             break;
-          }
           
           case "start":
             if(VerifyInitialized())
@@ -139,11 +167,13 @@ static class App
             break;
 
           case "set":
-            if(words.Length == 2)
+          {
+            string[] words = parameters.Split(null, 2);
+            if(words.Length == 1)
             {
               Console.WriteLine("Usage: set PROPERTY VALUE");
             }
-            if(words.Length < 3 || !SetProperty(words[1], string.Join(" ", words, 2, words.Length-2)))
+            if(words.Length < 2 || !SetProperty(words[0], words[1]))
 
             {
               Console.Write("Available options:\n"+
@@ -153,6 +183,7 @@ static class App
                             "  readTimeout, transferTimeout, cookies, userAgent\n");
             }
             break;
+          }
 
           case "quit": case "exit":
             if(crawl.CurrentDownloadCount != 0)
@@ -166,7 +197,7 @@ static class App
             }
         
           default:
-            Console.WriteLine("Unrecognized command '"+words[0]+"'");
+            Console.WriteLine("Unrecognized command '"+match.Groups[1].Value+"'");
             break;
         }
       }
@@ -181,6 +212,77 @@ static class App
     }
     
     done:;
+  }
+
+  static void AddFilter(string filter)
+  {
+    Regex regex;
+    string replacement = null;
+
+    if(filter[0] == '*')
+    {
+      string[] bits = filter.Substring(1).Split();
+      if(bits.Length != 2) throw new ArgumentException("Invalid change filter.");
+      regex = new Regex(bits[0], UriRegexOptions & ~RegexOptions.ExplicitCapture | RegexOptions.Compiled);
+      replacement = bits[1];
+    }
+    else
+    {
+      regex = new Regex(filter.Substring(1), UriRegexOptions | RegexOptions.Compiled);
+    }
+    
+    if(positiveFilters == null && negativeFilters == null && changeFilters == null)
+    {
+      crawl.FilterUris += crawl_FilterUris;
+    }
+
+    if(filter[0] == '+')
+    {
+      if(positiveFilters == null) positiveFilters = new List<Regex>();
+      positiveFilters.Add(regex);
+    }
+    else if(filter[0] == '-')
+    {
+      if(negativeFilters == null) negativeFilters = new List<Regex>();
+      negativeFilters.Add(regex);
+    }
+    else if(filter[0] == '*')
+    {
+      if(changeFilters == null) changeFilters = new List<ChangeFilter>();
+      changeFilters.Add(new ChangeFilter(regex, replacement));
+    }
+  }
+
+  static Uri crawl_FilterUris(Uri uri)
+  {
+    string uriString = uri.ToString();
+
+    if(positiveFilters != null)
+    {
+      for(int i=0; i<positiveFilters.Count; i++) if(!positiveFilters[i].IsMatch(uriString)) return null;
+    }
+    
+    if(negativeFilters != null)
+    {
+      for(int i=0; i<negativeFilters.Count; i++) if(negativeFilters[i].IsMatch(uriString)) return null;
+    }
+
+    if(changeFilters != null)
+    {
+      for(int i=0; i<changeFilters.Count; i++)
+      {
+        Match uriMatch = changeFilters[i].Regex.Match(uriString);
+        if(uriMatch.Success)
+        {
+          uriString = varRe.Replace(changeFilters[i].Replacement,
+                                    delegate(Match m) 
+                                      { return uriMatch.Groups[int.Parse(m.Groups["group"].Value)].Value; });
+          return new Uri(uriString);
+        }
+      }
+    }
+
+    return uri;
   }
 
   static void crawl_Progress(Resource resource)
@@ -210,19 +312,6 @@ static class App
     return max == 0 ? "undefined" : (object)max;
   }
 
-  static Uri GetUri(string prompt)
-  {
-    return new Uri(GetInput(prompt));
-  }
-  
-  static string GetInput(string prompt)
-  {
-    Console.Write(prompt+"? ");
-    prompt = Console.ReadLine();
-    if(prompt != null) prompt = prompt.Trim();
-    return string.IsNullOrEmpty(prompt) ? null : prompt;
-  }
-
   static bool SetProperty(string property, string value)
   {
     string propertyName;
@@ -249,8 +338,21 @@ static class App
       return false;
     }
   }
+
+  struct ChangeFilter
+  {
+    public ChangeFilter(Regex regex, string replacement) { Regex = regex; Replacement = replacement; }
+    public Regex Regex;
+    public string Replacement;
+  }
   
   static readonly Dictionary<string,string> propertyMap;
+  static List<Regex> positiveFilters, negativeFilters;
+  static List<ChangeFilter> changeFilters;
+
+  static readonly Regex cmdRe = new Regex(@"^\s*(\w+)\s*(.*?)\s*$", RegexOptions.Singleline);
+  static readonly Regex varRe = new Regex(@"\$(?:\{(?<group>\d+)\}|(?<group>\d+))",
+                                          RegexOptions.Singleline|RegexOptions.Compiled);
 }
 
 } // namespace Crawler

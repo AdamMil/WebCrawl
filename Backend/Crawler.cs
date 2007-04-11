@@ -6,6 +6,7 @@ using System.Net;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
+using System.Web;
 using BinaryReader = AdamMil.IO.BinaryReader;
 using BinaryWriter = AdamMil.IO.BinaryWriter;
 
@@ -42,6 +43,7 @@ public delegate void ContentFilter(string url, ref string content, ref string mi
 public delegate string LocalPathCreator(string relativeUrl);
 public delegate void ProgressHandler(Resource resource);
 public delegate void SimpleEventHandler();
+public delegate Uri UriFilter(Uri uri);
 
 #region MimeOverride
 public struct MimeOverride
@@ -179,6 +181,7 @@ public sealed class Crawler : IDisposable
   public event ContentFilter FilterContent;
   public event LocalPathCreator CreatePath;
   public event ProgressHandler Progress;
+  public event UriFilter FilterUris;
   
   public string BaseDirectory
   {
@@ -426,6 +429,7 @@ public sealed class Crawler : IDisposable
     {
       Terminate(0);
       ClearUris();
+      services.Clear();
       baseDir = null;
     }
   }
@@ -456,6 +460,17 @@ public sealed class Crawler : IDisposable
       }
     }
     baseUris.Clear();
+  }
+
+  public void RemoveUris(Regex uriFilter, bool allowRequeue)
+  {
+    lock(services)
+    {
+      foreach(Service service in services.Values)
+      {
+        service.Remove(uriFilter, allowRequeue);
+      }
+    }
   }
 
   public void SaveState(BinaryWriter writer)
@@ -761,6 +776,7 @@ public sealed class Crawler : IDisposable
           continue;
         }
 
+        resourceUri = resource.Uri;
         string localFileName = null;
         try
         {
@@ -770,9 +786,9 @@ public sealed class Crawler : IDisposable
           if(!crawlerWantsEverything)
           {
             // we need to determine whether we actually want to download this item. try to guess from the Url
-            resourceType = crawler.GuessResourceType(resource.Uri);
+            resourceType = crawler.GuessResourceType(resourceUri);
             // we can't be sure about resources from FTP, so assume they're non-html
-            if(resourceType == Download.Unknown && resource.Uri.Scheme == "ftp")
+            if(resourceType == Download.Unknown && resourceUri.Scheme == "ftp")
             {
               resourceType = Download.NonHtml;
             }
@@ -781,7 +797,7 @@ public sealed class Crawler : IDisposable
             if(resourceType == Download.NonHtml && !crawler.WantResource(resourceType)) continue;
           }
 
-          request = WebRequest.Create(resource.Uri);
+          request = WebRequest.Create(resourceUri);
 
           HttpWebRequest httpRequest = request as HttpWebRequest;
           if(httpRequest != null)
@@ -799,7 +815,7 @@ public sealed class Crawler : IDisposable
 
               if(!crawler.WantResource(resourceType)) continue;
 
-              request = WebRequest.Create(resource.Uri); // create a new request to retrieve the actual content
+              request = WebRequest.Create(resourceUri); // create a new request to retrieve the actual content
               httpRequest = (HttpWebRequest)request;
               SetupHttpRequest(httpRequest);
             }
@@ -815,7 +831,7 @@ public sealed class Crawler : IDisposable
           }
 
           // at this point, we know we probably want the data, so create the file and download it
-          localFileName = service.GetLocalFileName(resource.Uri, resource.type);
+          localFileName = service.GetLocalFileName(resourceUri, resource.type);
           // if the filename is null, it means this resource is not wanted. this can happen for a file with too many
           if(localFileName == null) continue; // query strings (to prevent the crawler from crawling it infinitely)
 
@@ -835,13 +851,35 @@ public sealed class Crawler : IDisposable
             }
             resource.responseCode = httpResponse.StatusCode;
             resource.responseText = httpResponse.StatusDescription;
+
+            // if the response Uri is different from the resource Uri, it was probably a redirection of some sort.
+            // get a new local file name.
+            if(!httpResponse.ResponseUri.Equals(resourceUri))
+            {
+              resourceUri = httpResponse.ResponseUri;
+
+              // ensure that the place we redirected to is an allowed Url
+              bool isExternal;
+              if(!crawler.IsUriAllowed(httpResponse.ResponseUri, resource.External, out isExternal))
+              {
+                localFileName = null;
+              }
+              else
+              {
+                localFileName = service.GetLocalFileName(httpResponse.ResponseUri, resource.type);
+              }
+            }
           }
           else if(response is FtpWebResponse)
           {
             resource.responseText = ((FtpWebResponse)response).StatusDescription;
           }
 
-          if(resourceType == Download.Html && crawler.RewriteLinks)
+          if(localFileName == null) // if we later discovered that this is not what we want, just consume the stream.
+          {                         // (for instance, if it redirected to an invalid url)
+            response.Close();
+          }
+          else if(resourceType == Download.Html && crawler.RewriteLinks)
           {
             Encoding encoding = GetEncoding(httpResponse);
             string html;
@@ -855,13 +893,13 @@ public sealed class Crawler : IDisposable
             if(totalSeconds == 0) totalSeconds = 0.1;
 
             html = ScanForAndRewriteLinks(html, Path.GetDirectoryName(localFileName));
-            
+
             byte[] bytes = encoding.GetBytes(html);
             using(FileStream file = new FileStream(localFileName, FileMode.Create, FileAccess.Write, FileShare.Read))
             {
               file.Write(bytes, 0, bytes.Length);
             }
-            
+
             lastBytesPerSecond = (int)Math.Round(bytes.Length / totalSeconds);
           }
           else
@@ -926,9 +964,10 @@ public sealed class Crawler : IDisposable
       Disassociate();
     }
 
-    Uri GetAbsoluteLinkUrl(Uri baseUri, Group linkGroup)
+    Uri GetAbsoluteLinkUrl(Uri baseUri, Group linkGroup, bool decodeEntities)
     {
       string linkText = linkGroup.Value;
+      if(decodeEntities) linkText = HttpUtility.HtmlDecode(linkText);
       if(linkText.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase) ||
          linkText.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase))
       {
@@ -962,10 +1001,10 @@ public sealed class Crawler : IDisposable
       return endPos == -1 ? contentType : contentType.Substring(0, endPos);
     }
 
-    void HandleLinkMatch(Uri baseUri, string referrer, Match m)
+    void HandleLinkMatch(Uri baseUri, string referrer, Match m, bool decodeEntities)
     {
       LinkType type;
-      Uri uri = GetAbsoluteLinkUrl(baseUri, GetLinkMatchGroup(m, out type));
+      Uri uri = crawler.FilterUri(GetAbsoluteLinkUrl(baseUri, GetLinkMatchGroup(m, out type), decodeEntities));
       if(uri != null)
       {
         try { crawler.EnqueueUri(uri, referrer, resource.Depth+1, type, false); }
@@ -977,8 +1016,8 @@ public sealed class Crawler : IDisposable
     // scan inside javascript too.
     void ScanForLinks(string html)
     {
-      Uri baseUri = resource.Uri; // use the resource uri as the base uri by default
-      string referrer = resource.Uri.GetLeftPart(UriPartial.Query);
+      Uri baseUri = resourceUri; // use the resource uri as the base uri by default
+      string referrer = resourceUri.GetLeftPart(UriPartial.Query);
 
       Match m = baseRe.Match(html); // but if the document specifies a different base Uri, use it.
       if(m.Success)
@@ -990,7 +1029,7 @@ public sealed class Crawler : IDisposable
       m = linkRe.Match(html); // now look for links in the HTML
       while(m.Success)
       {
-        HandleLinkMatch(baseUri, referrer, m);
+        HandleLinkMatch(baseUri, referrer, m, true);
         m = m.NextMatch();
       }
       
@@ -1000,7 +1039,7 @@ public sealed class Crawler : IDisposable
         Match linkMatch = styleLinkRe.Match(m.Groups["css"].Value); // and links within the style blocks
         while(linkMatch.Success)
         {
-          HandleLinkMatch(baseUri, referrer, linkMatch);
+          HandleLinkMatch(baseUri, referrer, linkMatch, false);
           linkMatch = linkMatch.NextMatch();
         }
         
@@ -1010,8 +1049,8 @@ public sealed class Crawler : IDisposable
     
     string ScanForAndRewriteLinks(string html, string localDir)
     {
-      Uri baseUri = resource.Uri; // use the resource uri as the base uri by default
-      string referrer = resource.Uri.GetLeftPart(UriPartial.Query);
+      Uri baseUri = resourceUri; // use the resource uri as the base uri by default
+      string referrer = resourceUri.GetLeftPart(UriPartial.Query);
       
       Match m = baseRe.Match(html);
       if(m.Success) // but if the document specifies a different base Uri, use it.
@@ -1021,9 +1060,12 @@ public sealed class Crawler : IDisposable
         html = baseRe.Replace(html, "."); // replace the base with '.'
       }
 
-      MatchEvaluator replacer = delegate(Match match) { return RewriteHtmlLink(match, baseUri, referrer, localDir); };
-      html = linkRe.Replace(html, replacer);
-      html = styleRe.Replace(html, delegate(Match match) { return styleLinkRe.Replace(match.Value, replacer); });
+      MatchEvaluator htmlReplacer =
+        delegate(Match match) { return RewriteHtmlLink(match, baseUri, referrer, localDir, true); };
+      MatchEvaluator cssReplacer =
+        delegate(Match match) { return RewriteHtmlLink(match, baseUri, referrer, localDir, false); };
+      html = linkRe.Replace(html, htmlReplacer);
+      html = styleRe.Replace(html, delegate(Match match) { return styleLinkRe.Replace(match.Value, cssReplacer); });
       return html;
     }
 
@@ -1054,13 +1096,13 @@ public sealed class Crawler : IDisposable
       httpRequest.MaximumAutomaticRedirections = crawler.MaxRedirects;
     }
 
-    string RewriteHtmlLink(Match m, Uri baseUri, string referrer, string localDir)
+    string RewriteHtmlLink(Match m, Uri baseUri, string referrer, string localDir, bool decodeEntities)
     {
       try
       {
         LinkType type;
         Group g = GetLinkMatchGroup(m, out type);
-        Uri absUri = GetAbsoluteLinkUrl(baseUri, g);
+        Uri absUri = crawler.FilterUri(GetAbsoluteLinkUrl(baseUri, g, decodeEntities));
         if(absUri != null)
         {
           string prefix = m.Value.Substring(0, g.Index-m.Index);
@@ -1086,6 +1128,7 @@ public sealed class Crawler : IDisposable
     WebResponse response;
     Stream responseStream;
     Resource resource;
+    Uri resourceUri;
 
     Thread thread;
     int lastBytesPerSecond;
@@ -1221,10 +1264,7 @@ public sealed class Crawler : IDisposable
     
     static Service()
     {
-      badChars = new char[Path.InvalidPathChars.Length+2];
-      badChars[0] = Path.DirectorySeparatorChar;
-      badChars[1] = Path.AltDirectorySeparatorChar;
-      Path.InvalidPathChars.CopyTo(badChars, 2);
+      badChars = Path.GetInvalidFileNameChars();
       Array.Sort(badChars);
     }
 
@@ -1279,15 +1319,7 @@ public sealed class Crawler : IDisposable
       bool alreadyQueued = false;
       if(!forceRequeue)
       {
-        string key = uri.AbsolutePath;
-        if(!crawler.CaseSensitivePaths) key = key.ToLowerInvariant();
-
-        string query = crawler.EnableUrlHacks ? uri.Query : NormalizeQuery(uri.Query);
-        if(!string.IsNullOrEmpty(query))
-        {
-          key += query;
-        }
-
+        string key = MakeKey(uri);
         lock(queued)
         {
           int position = queued.BinarySearch(key);
@@ -1300,6 +1332,29 @@ public sealed class Crawler : IDisposable
       {
         lock(resources) resources.Enqueue(resource);
         crawler.OnProgress(ref resource, ProgressType.UrlQueued);
+      }
+    }
+
+    public void Remove(Regex uriRegex, bool allowRequeue)
+    {
+      lock(resources)
+      lock(queued)
+      {
+        Resource[] array = resources.ToArray();
+        resources.Clear();
+        for(int i=0; i<array.Length; i++)
+        {
+          if(!uriRegex.IsMatch(array[i].Uri.ToString()))
+          {
+            resources.Enqueue(array[i]);
+          }
+          else if(allowRequeue)
+          {
+            int position = queued.BinarySearch(MakeKey(array[i].Uri));
+            if(position >= 0) queued.RemoveAt(position);
+          }
+        }
+
       }
     }
 
@@ -1564,6 +1619,17 @@ public sealed class Crawler : IDisposable
       baseDir = Path.Combine(crawler.BaseDirectory, dirName);
     }
 
+    string MakeKey(Uri uri)
+    {
+      string key = uri.AbsolutePath;
+      if(!crawler.CaseSensitivePaths) key = key.ToLowerInvariant();
+
+      string query = crawler.EnableUrlHacks ? uri.Query : NormalizeQuery(uri.Query);
+      if(!string.IsNullOrEmpty(query)) key += query;
+
+      return key;
+    }
+
     // if it looks like a query string with key/value pairs (ie. ?a=A&b=B), then sort the keys so that
     // ?id=5&page=1 and ?page=1&id=5 are considered identical.
     static string NormalizeQuery(string query)
@@ -1655,6 +1721,16 @@ public sealed class Crawler : IDisposable
   internal enum LinkType
   {
     Link, InternalResource, ExternalResource
+  }
+
+  internal Uri FilterUri(Uri uri)
+  {
+    if(FilterUris != null && uri != null)
+    {
+      try { uri = FilterUris(uri); }
+      catch { }
+    }
+    return uri;
   }
 
   bool DownloadNearFiles
@@ -1997,7 +2073,8 @@ public sealed class Crawler : IDisposable
     resource.status = newStatus;
     if(Progress != null && (ProgressFilter & newStatus) != 0)
     {
-      Progress(resource);
+      try { Progress(resource); }
+      catch { }
     }
   }
 
