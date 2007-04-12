@@ -10,6 +10,8 @@ using System.Web;
 using BinaryReader = AdamMil.IO.BinaryReader;
 using BinaryWriter = AdamMil.IO.BinaryWriter;
 
+// TODO: protect against malicious servers that send unlimited streams of response data
+
 namespace WebCrawl.Backend
 {
 
@@ -295,7 +297,9 @@ public sealed class Crawler : IDisposable
     set
     {
       if(value <= 0) throw new ArgumentOutOfRangeException();
+      bool increased = value > connsPerServer;
       connsPerServer = value;
+      if(increased && currentActiveThreads < MaxConnections) CrawlServices();
     }
   }
   
@@ -305,7 +309,9 @@ public sealed class Crawler : IDisposable
     set
     {
       if(value <= 0) throw new ArgumentOutOfRangeException();
+      bool increased = value > maxConnections;
       maxConnections = value;
+      if(increased) CrawlServices();
     }
   }
 
@@ -542,14 +548,7 @@ public sealed class Crawler : IDisposable
     if(!running)
     {
       running = true;
-
-      lock(services)
-      {
-        foreach(Service service in services.Values)
-        {
-          if(!service.IsQueueEmpty) CrawlService(service);
-        }
-      }
+      CrawlServices();
     }
   }
 
@@ -804,6 +803,7 @@ public sealed class Crawler : IDisposable
 
       lastBytesPerSecond = 0;
       thread     = null;
+      dataBuffer = null;
       shouldQuit = false;
     }
 
@@ -932,6 +932,8 @@ public sealed class Crawler : IDisposable
           }
           else if(resourceType == Download.Html && crawler.RewriteLinks)
           {
+            // FIXME: this fails when there's a <meta> tag on the page that sets the encoding to something incompatible
+            // with what the server says it is, e.g. when the server says it's utf-8 but a meta tag says it's euc-jp
             Encoding encoding = GetEncoding(httpResponse);
             string html;
 
@@ -1013,6 +1015,28 @@ public sealed class Crawler : IDisposable
       }
       
       Reset();
+    }
+
+    int CopyStream(Stream source, Stream dest)
+    {
+      try
+      {
+        if(dataBuffer == null) dataBuffer = new byte[65536];
+        int totalSize = 0;
+        while(true)
+        {
+          int read = source.Read(dataBuffer, 0, dataBuffer.Length);
+          if(read == 0) break;
+          dest.Write(dataBuffer, 0, read);
+          totalSize += read;
+        }
+        return totalSize;
+      }
+      finally
+      {
+        dest.Close();
+        source.Close();
+      }
     }
 
     Uri GetAbsoluteLinkUrl(Uri baseUri, Group linkGroup, bool decodeEntities)
@@ -1182,31 +1206,10 @@ public sealed class Crawler : IDisposable
     Uri resourceUri;
 
     Thread thread;
+    byte[] dataBuffer;
     int lastBytesPerSecond;
     bool shouldQuit;
     volatile bool threadActive;
-
-    static int CopyStream(Stream source, Stream dest)
-    {
-      try
-      {
-        byte[] buffer = new byte[4096];
-        int totalSize = 0;
-        while(true)
-        {
-          int read = source.Read(buffer, 0, 4096);
-          if(read == 0) break;
-          dest.Write(buffer, 0, read);
-          totalSize += read;
-        }
-        return totalSize;
-      }
-      finally
-      {
-        dest.Close();
-        source.Close();
-      }
-    }
 
     static Encoding GetEncoding(HttpWebResponse response)
     {
@@ -1267,8 +1270,8 @@ public sealed class Crawler : IDisposable
                                           i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
                                           link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
                                           applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          object\b[^>]*?\bdata\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          param\s+name=[""'](?:src|href|file|filename|data)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
+                                          object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
+                                          param\s+name=[""'](?:src|href|file|filename|data|movie5)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
                                           \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
@@ -1891,6 +1894,17 @@ public sealed class Crawler : IDisposable
         }
 
         StartThread(thread, service);
+      }
+    }
+  }
+
+  void CrawlServices()
+  {
+    lock(services)
+    {
+      foreach(Service service in services.Values)
+      {
+        CrawlService(service);
       }
     }
   }
