@@ -44,7 +44,7 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.6 copyright Adam Milazzo 2006");
+    Console.WriteLine("Crawler v. 0.65 copyright Adam Milazzo 2006");
 
     crawl.AddStandardMimeOverrides();
 
@@ -82,6 +82,10 @@ static class App
             if(uri != null) crawl.EnqueueUri(uri);
             break;
           }
+
+          case "clearfilters":
+            ClearFilters();
+            break;
 
           case "filter":
             if(string.IsNullOrEmpty(parameters) ||
@@ -143,10 +147,19 @@ static class App
             break;
 
           case "stats":
+          {
             Console.Write(string.Format("{0} current connections\n{1} queued links\n{2}kps download rate\n",
                                         crawl.CurrentDownloadCount, crawl.CurrentLinksQueued,
                                         Math.Round(crawl.CurrentBytesPerSecond/1024.0, 1)));
+            Uri[] uris = crawl.GetDownloadingUris();
+            if(uris.Length != 0)
+            {
+              Console.WriteLine();
+              Console.WriteLine("URIs being downloaded:");
+              foreach(Uri uri in uris) Console.WriteLine(uri.AbsoluteUri);
+            }
             break;
+          }
 
           case "get":
             Console.Write(string.Format(
@@ -253,9 +266,36 @@ static class App
     }
   }
 
+  static void ClearFilters()
+  {
+    if(positiveFilters != null || negativeFilters != null || changeFilters != null)
+    {
+      crawl.FilterUris -= crawl_FilterUris;
+      positiveFilters = negativeFilters = null;
+      changeFilters = null;
+    }
+  }
+
   static Uri crawl_FilterUris(Uri uri)
   {
-    string uriString = uri.ToString();
+    string uriString = uri.AbsoluteUri;
+
+    if(changeFilters != null)
+    {
+      bool uriChanged = false;
+      for(int i=0; i<changeFilters.Count; i++)
+      {
+        Match uriMatch = changeFilters[i].Regex.Match(uriString);
+        if(uriMatch.Success)
+        {
+          uriString = varRe.Replace(changeFilters[i].Replacement,
+                                    delegate(Match m)
+                                    { return uriMatch.Groups[int.Parse(m.Groups["group"].Value)].Value; });
+          uriChanged = true;
+        }
+      }
+      if(uriChanged) uri = new Uri(uriString);
+    }
 
     if(positiveFilters != null)
     {
@@ -265,21 +305,6 @@ static class App
     if(negativeFilters != null)
     {
       for(int i=0; i<negativeFilters.Count; i++) if(negativeFilters[i].IsMatch(uriString)) return null;
-    }
-
-    if(changeFilters != null)
-    {
-      for(int i=0; i<changeFilters.Count; i++)
-      {
-        Match uriMatch = changeFilters[i].Regex.Match(uriString);
-        if(uriMatch.Success)
-        {
-          uriString = varRe.Replace(changeFilters[i].Replacement,
-                                    delegate(Match m) 
-                                      { return uriMatch.Groups[int.Parse(m.Groups["group"].Value)].Value; });
-          return new Uri(uriString);
-        }
-      }
     }
 
     return uri;
