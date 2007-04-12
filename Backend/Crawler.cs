@@ -151,7 +151,7 @@ public struct Resource
     writer.WriteStringWithLength(localPath);
     writer.WriteStringWithLength(responseText);
     writer.WriteStringWithLength(contentType);
-    writer.WriteStringWithLength(uri.ToString());
+    writer.WriteStringWithLength(uri.AbsoluteUri);
     writer.Write((int)responseCode);
     writer.Write(depth);
     writer.Write(retries);
@@ -215,7 +215,7 @@ public sealed class Crawler : IDisposable
       {
         foreach(ConnectionThread thread in threads)
         {
-          if(thread.IsRunning) bytesPerSecond += thread.CurrentBytesPerSecond;
+          if(!thread.IsIdle) bytesPerSecond += thread.CurrentBytesPerSecond;
         }
       }
       return bytesPerSecond;
@@ -462,6 +462,20 @@ public sealed class Crawler : IDisposable
     baseUris.Clear();
   }
 
+  public Uri[] GetDownloadingUris()
+  {
+    lock(threads)
+    {
+      List<Uri> uris = new List<Uri>(currentActiveThreads);
+      foreach(ConnectionThread thread in threads)
+      {
+        Uri uri = thread.CurrentUri;
+        if(uri != null) uris.Add(uri);
+      }
+      return uris.ToArray();
+    }
+  }
+
   public void RemoveUris(Regex uriFilter, bool allowRequeue)
   {
     lock(services)
@@ -518,7 +532,7 @@ public sealed class Crawler : IDisposable
     foreach(Service service in services.Values) service.Write(writer);
     
     writer.Write(baseUris.Count);
-    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.ToString());
+    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.AbsoluteUri);
   }
 
   public void Start()
@@ -575,7 +589,7 @@ public sealed class Crawler : IDisposable
         }
       }
 
-      currentActiveThreads = 0;
+      Debug.Assert(currentActiveThreads == 0);
     }
   }
 
@@ -673,12 +687,22 @@ public sealed class Crawler : IDisposable
       get { return lastBytesPerSecond; }
     }
 
+    public Uri CurrentUri
+    {
+      get { return resourceUri; }
+    }
+
+    public bool IsIdle
+    {
+      get { return !IsStopping && !IsRunning; }
+    }
+
     public bool IsRunning
     {
       get
       {
         Thread thread = this.thread;
-        return !shouldQuit && thread != null && thread.IsAlive;
+        return !shouldQuit && thread != null && thread.IsAlive && service != null;
       }
     }
     
@@ -694,11 +718,11 @@ public sealed class Crawler : IDisposable
 
     public void Start(Service service)
     {
-      if(shouldQuit) throw new InvalidOperationException("The thread is in the process of quitting.");
+      if(IsStopping) throw new InvalidOperationException("The thread is in the process of quitting.");
+      if(IsRunning) throw new InvalidOperationException("This thread is already running!");
       if(service == null) throw new ArgumentNullException();
-      if(service == this.service) return;
 
-      if(IsStopping) Terminate(0); // if the thread is in the process of stopping, finish it immediately
+      Debug.Assert(this.service == null);
 
       this.service = service;
       this.service.connections++;
@@ -709,11 +733,21 @@ public sealed class Crawler : IDisposable
         thread = new Thread(ThreadFunc);
         thread.Start();
       }
+
+      // wait until the thread is really active and has attempted to remove an item from the queue. this prevents the
+      // main crawler thread from adding a bunch of threads in quick succession because it keeps seeing that there
+      // are still resources queued in the service, when it's simply that the threads haven't had a chance to drain
+      // the queue yet. we'll also break out of the loop if the thread was idled for some reason.
+      while(!threadActive && !shouldQuit) Thread.Sleep(10);
     }
 
     public void Stop()
     {
-      shouldQuit = true;
+      if(!shouldQuit)
+      {
+        Thread thread = this.thread;
+        if(thread != null && thread.IsAlive) shouldQuit = true;
+      }
     }
 
     public void Terminate(int timeToWait)
@@ -726,7 +760,7 @@ public sealed class Crawler : IDisposable
         if(!thread.Join(timeToWait)) thread.Abort();
       }
 
-      Disassociate();
+      Reset();
     }
 
     void CleanupRequest()
@@ -748,21 +782,28 @@ public sealed class Crawler : IDisposable
         request.Abort();
         request = null;
       }
+
+      resourceUri = null;
     }
 
     void Disassociate()
     {
-      CleanupRequest();
-
       if(service != null)
       {
         crawler.currentActiveThreads--;
         service.connections--;
         service = null;
+        threadActive = false;
       }
+    }
+
+    void Reset()
+    {
+      CleanupRequest();
+      Disassociate();
 
       lastBytesPerSecond = 0;
-      thread = null;
+      thread     = null;
       shouldQuit = false;
     }
 
@@ -770,13 +811,21 @@ public sealed class Crawler : IDisposable
     {
       while(!shouldQuit)
       {
-        CleanupRequest();
+        CleanupRequest(); // cleanup the request from the previous iteration
+
         if(service.CurrentConnections > crawler.MaxConnectionsPerServer || // if the service has too many connections,
            !service.TryDequeue(out resource)) // or the service has no more resources for us to process...
         {
-          crawler.OnThreadIdle(this); // the crawler will re-associate, stop, or terminate this thread
+          Disassociate();
+          // mark that we've at least tried doing something. this prevents a deadlock where Start() is waiting for
+          // threadActive to become true (within a services lock from CrawlService), and OnThreadIdle() is waiting for
+          // services to be unlocked
+          threadActive = true;
+          crawler.OnThreadIdle(this); // the crawler will re-associate or stop this thread
           continue;
         }
+
+        threadActive = true; // mark that we've started doing something
 
         resourceUri = resource.Uri;
         string localFileName = null;
@@ -847,8 +896,8 @@ public sealed class Crawler : IDisposable
           if(httpResponse != null)
           {
             if(crawler.UseCookies) Service.SaveCookies(httpResponse);
-            if(resourceType == Download.Unknown)
-            {
+            if(resourceType != Download.NonHtml) // if the resource type is Unknown or Html, double-check it because
+            {                                    // it may have come from an HTML-like extension but may not be HTML
               resourceType = Crawler.GetResourceType(GetMimeType(httpResponse.ContentType));
             }
             resource.responseCode = httpResponse.StatusCode;
@@ -877,7 +926,7 @@ public sealed class Crawler : IDisposable
             resource.responseText = ((FtpWebResponse)response).StatusDescription;
           }
 
-          if(localFileName == null) // if we later discovered that this is not what we want, just consume the stream.
+          if(localFileName == null) // if we later discovered that this is not what we want, just close the stream.
           {                         // (for instance, if it redirected to an invalid url)
             response.Close();
           }
@@ -963,7 +1012,7 @@ public sealed class Crawler : IDisposable
         }
       }
       
-      Disassociate();
+      Reset();
     }
 
     Uri GetAbsoluteLinkUrl(Uri baseUri, Group linkGroup, bool decodeEntities)
@@ -1114,7 +1163,7 @@ public sealed class Crawler : IDisposable
           {
             relUri = crawler.GetRelativeUri(localDir, absUri, type);
           }
-          if(relUri == null) relUri = absUri.ToString();
+          if(relUri == null) relUri = absUri.AbsoluteUri;
           return prefix + relUri + suffix;
         }
       }
@@ -1135,6 +1184,7 @@ public sealed class Crawler : IDisposable
     Thread thread;
     int lastBytesPerSecond;
     bool shouldQuit;
+    volatile bool threadActive;
 
     static int CopyStream(Stream source, Stream dest)
     {
@@ -1346,7 +1396,7 @@ public sealed class Crawler : IDisposable
         resources.Clear();
         for(int i=0; i<array.Length; i++)
         {
-          if(!uriRegex.IsMatch(array[i].Uri.ToString()))
+          if(!uriRegex.IsMatch(array[i].Uri.AbsoluteUri))
           {
             resources.Enqueue(array[i]);
           }
@@ -1458,7 +1508,7 @@ public sealed class Crawler : IDisposable
 
     public void Write(BinaryWriter writer)
     {
-      writer.WriteStringWithLength(baseUri.ToString());
+      writer.WriteStringWithLength(baseUri.AbsoluteUri);
 
       writer.Write(resources.Count);
       foreach(Resource resource in resources) resource.Write(writer);
@@ -1800,39 +1850,42 @@ public sealed class Crawler : IDisposable
   void CrawlService(Service service)
   {
     if(service == null) throw new ArgumentNullException();
-    if(currentActiveThreads >= MaxConnections) return;
+
+    if(currentActiveThreads >= MaxConnections || service.CurrentConnections >= MaxConnectionsPerServer ||
+       service.IsQueueEmpty)
+    {
+      return;
+    }
 
     lock(threads)
     {
-      if(service.CurrentConnections < MaxConnectionsPerServer)
+      int idleThread;
+      for(idleThread=0; idleThread<threads.Count; idleThread++) // find the first idle thread
       {
-        int idleThread;
-        for(idleThread=0; idleThread<threads.Count; idleThread++) // find the first idle thread
+        if(threads[idleThread].IsIdle) break;
+      }
+
+      while(currentActiveThreads < MaxConnections && service.CurrentConnections < MaxConnectionsPerServer &&
+            !service.IsQueueEmpty && idleThread < MaxConnections)
+      {
+        ConnectionThread thread;
+        
+        if(idleThread == threads.Count)
         {
-          if(!threads[idleThread].IsRunning) break;
+          thread = new ConnectionThread(this);
+          threads.Add(thread);
+          idleThread++; // make sure idleThread still equals threads.Count
+        }
+        else
+        {
+          thread = threads[idleThread];
+          for(; idleThread<threads.Count; idleThread++) // advance to the next idle thread
+          {
+            if(threads[idleThread].IsIdle) break;
+          }
         }
 
-        do
-        {
-          ConnectionThread thread;
-          if(idleThread == threads.Count)
-          {
-            thread = new ConnectionThread(this);
-            threads.Add(thread);
-            idleThread++; // make sure idleThread still equals threads.Count
-          }
-          else
-          {
-            thread = threads[idleThread];
-            for(; idleThread<threads.Count; idleThread++) // advance to the next idle thread
-            {
-              if(!threads[idleThread].IsRunning) break;
-            }
-          }
-
-          StartThread(thread, service);
-        } while(currentActiveThreads < MaxConnections && service.CurrentConnections < MaxConnectionsPerServer &&
-                service.ResourceCount > 0 && idleThread < MaxConnections);
+        StartThread(thread, service);
       }
     }
   }
@@ -1901,12 +1954,7 @@ public sealed class Crawler : IDisposable
       Resource resource = new Resource(uri, referrer, depth, type, external);
       Service service = GetService(uri, external);
       service.Enqueue(ref resource);
-
-      if(running && currentActiveThreads < MaxConnections && service.connections < MaxConnectionsPerServer)
-      {
-        CrawlService(service);
-      }
-
+      if(running) CrawlService(service);
       return true;
     }
     else
@@ -2088,9 +2136,9 @@ public sealed class Crawler : IDisposable
 
   void OnThreadIdle(ConnectionThread thread)
   {
-    if(!running) // if we're stopped, just idle the thread
+    if(!running || currentActiveThreads >= MaxConnections)
     {
-      IdleThread(thread);
+      IdleThread(thread); // if we're not creating any new connections, just stop the thread
     }
     else // otherwise find another service that we can associate with this thread
     {
@@ -2106,7 +2154,7 @@ public sealed class Crawler : IDisposable
           }
         }
 
-        IdleThread(thread); // if we couldn't find a service to run, idle the thread
+        IdleThread(thread); // if we couldn't find a service to run, stop the thread
       }
     }
   }
