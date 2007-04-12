@@ -1521,6 +1521,11 @@ public sealed class Crawler : IDisposable
       }
     }
 
+    public override string ToString()
+    {
+      return BaseUri.AbsoluteUri;
+    }
+    
     struct LocalFileInfo
     {
       public LocalFileInfo(string fileName) { BasePath = fileName; Queries = null; }
@@ -1879,7 +1884,7 @@ public sealed class Crawler : IDisposable
         else
         {
           thread = threads[idleThread];
-          for(; idleThread<threads.Count; idleThread++) // advance to the next idle thread
+          for(idleThread++; idleThread<threads.Count; idleThread++) // advance to the next idle thread
           {
             if(threads[idleThread].IsIdle) break;
           }
