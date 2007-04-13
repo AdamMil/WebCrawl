@@ -10,8 +10,6 @@ using System.Web;
 using BinaryReader = AdamMil.IO.BinaryReader;
 using BinaryWriter = AdamMil.IO.BinaryWriter;
 
-// TODO: protect against malicious servers that send unlimited streams of response data
-
 namespace WebCrawl.Backend
 {
 
@@ -322,6 +320,16 @@ public sealed class Crawler : IDisposable
     {
       if(value <= 0) throw new ArgumentOutOfRangeException();
       maxDepth = value;
+    }
+  }
+
+  public int MaxFileSize
+  {
+    get { return maxSize; }
+    set
+    {
+      if(value < 0) throw new ArgumentOutOfRangeException();
+      maxSize = value;
     }
   }
 
@@ -930,31 +938,6 @@ public sealed class Crawler : IDisposable
           {                         // (for instance, if it redirected to an invalid url)
             response.Close();
           }
-          else if(resourceType == Download.Html && crawler.RewriteLinks)
-          {
-            // FIXME: this fails when there's a <meta> tag on the page that sets the encoding to something incompatible
-            // with what the server says it is, e.g. when the server says it's utf-8 but a meta tag says it's euc-jp
-            Encoding encoding = GetEncoding(httpResponse);
-            string html;
-
-            DateTime startTime = DateTime.Now;
-            using(StreamReader sr = new StreamReader(response.GetResponseStream(), encoding))
-            {
-              html = sr.ReadToEnd();
-            }
-            double totalSeconds = (DateTime.Now-startTime).TotalSeconds;
-            if(totalSeconds == 0) totalSeconds = 0.1;
-
-            html = ScanForAndRewriteLinks(html, Path.GetDirectoryName(localFileName));
-
-            byte[] bytes = encoding.GetBytes(html);
-            using(FileStream file = new FileStream(localFileName, FileMode.Create, FileAccess.Write, FileShare.Read))
-            {
-              file.Write(bytes, 0, bytes.Length);
-            }
-
-            lastBytesPerSecond = (int)Math.Round(bytes.Length / totalSeconds);
-          }
           else
           {
             DateTime startTime = DateTime.Now;
@@ -966,12 +949,49 @@ public sealed class Crawler : IDisposable
 
             if(resourceType == Download.Html)
             {
+              Encoding encoding = GetEncoding(httpResponse);
               string html;
-              using(StreamReader sr = new StreamReader(localFileName, GetEncoding(httpResponse)))
+
+              using(StreamReader sr = new StreamReader(localFileName, encoding))
               {
                 html = sr.ReadToEnd();
               }
-              ScanForLinks(html);
+
+              // if the page has a content type meta tag, and it's different from what the server reported,
+              // reload the file if we can.
+              Match contentTypeMatch = metaRe.Match(html);
+              if(contentTypeMatch.Success)
+              {
+                Encoding rightEncoding = null;
+                try
+                {
+                  rightEncoding = Encoding.GetEncoding(contentTypeMatch.Groups["charset"].Value);
+                  if(!string.Equals(rightEncoding.WebName, encoding.WebName, StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(rightEncoding.WebName, "us-ascii", StringComparison.OrdinalIgnoreCase))
+                  {
+                    encoding = rightEncoding;
+                    using(StreamReader sr = new StreamReader(localFileName, encoding))
+                    {
+                      html = sr.ReadToEnd();
+                    }
+                  }
+                }
+                catch(ArgumentException) { }
+              }
+
+              if(!crawler.RewriteLinks)
+              {
+                ScanForLinks(html);
+              }
+              else
+              {
+                html = ScanForAndRewriteLinks(html, Path.GetDirectoryName(localFileName));
+                using(FileStream file = new FileStream(localFileName, FileMode.Create, FileAccess.Write, FileShare.Read))
+                {
+                  byte[] bytes = encoding.GetBytes(html);
+                  file.Write(bytes, 0, bytes.Length);
+                }
+              }
             }
           }
 
@@ -1022,8 +1042,8 @@ public sealed class Crawler : IDisposable
       try
       {
         if(dataBuffer == null) dataBuffer = new byte[65536];
-        int totalSize = 0;
-        while(true)
+        int totalSize = 0, maxSize = crawler.MaxFileSize;
+        while(maxSize == 0 || totalSize < maxSize)
         {
           int read = source.Read(dataBuffer, 0, dataBuffer.Length);
           if(read == 0) break;
@@ -1283,6 +1303,10 @@ public sealed class Crawler : IDisposable
     static Regex styleLinkRe = new Regex(@"@import ""(?<resLink>[^""]+)|url\(['""]?(?<resLink>[^)]+?)['""]?\)",
                                          RegexOptions.Compiled | RegexOptions.CultureInvariant |
                                          RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    static Regex metaRe = new Regex(@"<meta\b[^>]*?\b(?:http-equiv=""content-type""[^>]*?\bcontent=""[^""]*?charset=(?<charset>[\w-]+)""|
+                                                        content=""[^""]*?charset=(?<charset>[\w-]+)""[^>]*?\bhttp-equiv=""content-type"")",
+                                    RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
+                                    RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
   }
   #endregion
 
@@ -2206,7 +2230,8 @@ public sealed class Crawler : IDisposable
   StringComparison pathComparison = StringComparison.OrdinalIgnoreCase;
   ProgressType progress = ProgressType.All;
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, maxDepth = 50, retries = 1, maxQueuedLinks,
-      ioTimeout = 60, transferTimeout = 1800, maxRedirects = 20, currentActiveThreads, maxQueryStrings = 500;
+      ioTimeout = 60, transferTimeout = 1800, maxRedirects = 20, currentActiveThreads, maxQueryStrings = 500,
+      maxSize = 50*1024*1024;
   bool rewriteLinks = true, useCookies = true, errorFiles, urlHacks, passiveFtp = true, disposed, running;
 
   static Regex domainRe = new Regex(@"[\w-]+\.[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
