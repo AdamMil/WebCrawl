@@ -28,6 +28,7 @@ static class App
     propertyMap["maxconns"]        = "MaxConnections";
     propertyMap["connsperserver"]  = "MaxConnectionsPerServer";
     propertyMap["maxdepth"]        = "MaxDepth";
+    propertyMap["maxsize"]         = "MaxFileSize";
     propertyMap["maxqueries"]      = "MaxQueryStringsPerFile";
     propertyMap["maxqueued"]       = "MaxQueuedLinks";
     propertyMap["maxredirects"]    = "MaxRedirects";
@@ -44,7 +45,7 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.65 copyright Adam Milazzo 2006-2007");
+    Console.WriteLine("Crawler v. 0.66 copyright Adam Milazzo 2006-2007");
 
     crawl.AddStandardMimeOverrides();
 
@@ -166,7 +167,8 @@ static class App
               "Base directory = {0}\nCase sensitive = {1}\nIdle timeout = {2}\nDefault referrer = {3}\n"+
               "Directory navigation = {4}\nDomain navigation = {5}\nDownload filter = {6}\nUrl hacks enabled = {7}\n"+
               "Generate error files = {8}\nIs inititialized = {9}\nMax. connections = {10}\n"+
-              "Max. connections per server = {11}\nMax. crawl depth = {12}\nMax. query strings per file = {13}\n"+
+              "Max. connections per server = {11}\nMax. crawl depth = {12}\nMax. file size = {25}\n"+
+              "Max. query strings per file = {13}\n"+
               "Max. queued links = {14}\nMax. redirects = {15}\nMax. retries = {16}\nPassive ftp = {17}\n"+
               "Preferred language = {18}\nProgress notifications = {19}\nLink rewriting = {20}\n"+
               "Read timeout = {21}\nTransfer timeout = {22}\nEnable cookies = {23}\nUser agent = {24}\n",
@@ -176,7 +178,7 @@ static class App
               GetMax(crawl.MaxDepth), GetMax(crawl.MaxQueryStringsPerFile), GetMax(crawl.MaxQueuedLinks),
               crawl.MaxRedirects, GetMax(crawl.MaxRetries), crawl.PassiveFtp, crawl.PreferredLanguage,
               crawl.ProgressFilter, crawl.RewriteLinks, GetMax(crawl.ReadTimeout), GetMax(crawl.TransferTimeout),
-              crawl.UseCookies, crawl.UserAgent));
+              crawl.UseCookies, crawl.UserAgent, GetMax(crawl.MaxFileSize)));
             break;
 
           case "set":
@@ -191,9 +193,9 @@ static class App
             {
               Console.Write("Available options:\n"+
                             "  caseSens, idleTimeout, referrer, dirNav, domainNav, download, urlHacks,\n"+
-                            "  errorFiles, maxConnections, connsPerServer, maxDepth, maxQueries, maxQueued,\n"+
-                            "  maxRedirects, maxRetries, passiveFtp, language, progress, rewriteLinks,\n"+
-                            "  readTimeout, transferTimeout, cookies, userAgent\n");
+                            "  errorFiles, maxConnections, connsPerServer, maxDepth, maxSize, maxQueries,\n"+
+                            "  maxQueued, maxRedirects, maxRetries, passiveFtp, language, progress,\n"+
+                            "  rewriteLinks, readTimeout, transferTimeout, cookies, userAgent\n");
             }
             break;
           }
