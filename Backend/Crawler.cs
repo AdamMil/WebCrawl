@@ -39,8 +39,7 @@ public enum ProgressType
 }
 #endregion
 
-public delegate void ContentFilter(string url, ref string content, ref string mimeType);
-public delegate string LocalPathCreator(string relativeUrl);
+public delegate void ContentFilter(string url, string mimeType, string contentFileName);
 public delegate void ProgressHandler(Resource resource, string extraMessage);
 public delegate void SimpleEventHandler();
 public delegate Uri UriFilter(Uri uri);
@@ -179,7 +178,6 @@ public sealed class Crawler : IDisposable
   }
 
   public event ContentFilter FilterContent;
-  public event LocalPathCreator CreatePath;
   public event ProgressHandler Progress;
   public event UriFilter FilterUris;
   
@@ -836,7 +834,7 @@ public sealed class Crawler : IDisposable
         threadActive = true; // mark that we've started doing something
 
         resourceUri = resource.Uri;
-        string localFileName = null;
+        string localFileName = null, mimeType = null;
         try
         {
           bool crawlerWantsEverything = (crawler.Download & Download.TypeMask) == Download.Everything;
@@ -859,6 +857,7 @@ public sealed class Crawler : IDisposable
           request = WebRequest.Create(resourceUri);
 
           HttpWebRequest httpRequest = request as HttpWebRequest;
+          HttpWebResponse httpResponse;
           if(httpRequest != null)
           {
             SetupHttpRequest(httpRequest);
@@ -866,10 +865,10 @@ public sealed class Crawler : IDisposable
             if(!crawlerWantsEverything && resourceType == Download.Unknown)
             {
               httpRequest.Method = "HEAD"; // use a HEAD request to determine the content type before downloading it
-              response = httpRequest.GetResponse();
+              httpResponse = (HttpWebResponse)httpRequest.GetResponse();
 
-              if(crawler.UseCookies) Service.SaveCookies((HttpWebResponse)response);
-              resourceType = Crawler.GetResourceType(GetMimeType(((HttpWebResponse)response).ContentType));
+              if(crawler.UseCookies) Service.SaveCookies(httpResponse);
+              resourceType = Crawler.GetResourceType(GetMimeType(httpResponse.ContentType));
               response.Close();
 
               if(!crawler.WantResource(resourceType)) continue;
@@ -900,14 +899,17 @@ public sealed class Crawler : IDisposable
           request.Timeout = crawler.TransferTimeout == 0 ? Timeout.Infinite : crawler.TransferTimeout*1000;
           response = request.GetResponse();
 
-          HttpWebResponse httpResponse = response as HttpWebResponse;
+          httpResponse = response as HttpWebResponse;
           if(httpResponse != null)
           {
             if(crawler.UseCookies) Service.SaveCookies(httpResponse);
+            mimeType = GetMimeType(httpResponse.ContentType);
+
             if(resourceType != Download.NonHtml) // if the resource type is Unknown or Html, double-check it because
             {                                    // it may have come from an HTML-like extension but may not be HTML
-              resourceType = Crawler.GetResourceType(GetMimeType(httpResponse.ContentType));
+              resourceType = Crawler.GetResourceType(mimeType);
             }
+
             resource.responseCode = httpResponse.StatusCode;
             resource.responseText = httpResponse.StatusDescription;
 
@@ -932,6 +934,7 @@ public sealed class Crawler : IDisposable
           else if(response is FtpWebResponse)
           {
             resource.responseText = ((FtpWebResponse)response).StatusDescription;
+            mimeType = resourceType == Download.Html ? "text/html" : "application/octet-stream";
           }
 
           if(localFileName == null) // if we later discovered that this is not what we want, just close the stream.
@@ -946,6 +949,9 @@ public sealed class Crawler : IDisposable
             double totalSeconds = (DateTime.Now-startTime).TotalSeconds;
             if(totalSeconds == 0) totalSeconds = 0.1;
             lastBytesPerSecond = (int)Math.Round(size / totalSeconds);
+
+            // allow the user to filter the content
+            crawler.DoFilterContent(resourceUri.AbsoluteUri, mimeType, localFileName);
 
             if(resourceType == Download.Html)
             {
@@ -1807,16 +1813,6 @@ public sealed class Crawler : IDisposable
     Link, InternalResource, ExternalResource
   }
 
-  internal Uri FilterUri(Uri uri)
-  {
-    if(FilterUris != null && uri != null)
-    {
-      try { uri = FilterUris(uri); }
-      catch { }
-    }
-    return uri;
-  }
-
   bool DownloadNearFiles
   {
     get { return (download & Download.NearFiles) != 0; }
@@ -1987,6 +1983,14 @@ public sealed class Crawler : IDisposable
     disposed = true;
   }
 
+  void DoFilterContent(string url, string mimeType, string fileName)
+  {
+    if(FilterContent != null)
+    {
+      FilterContent(url, mimeType, fileName);
+    }
+  }
+
   bool EnqueueUri(Uri uri, string referrer, int depth, LinkType type, bool force)
   {
     bool external;
@@ -2004,6 +2008,16 @@ public sealed class Crawler : IDisposable
     {
       return false;
     }
+  }
+
+  Uri FilterUri(Uri uri)
+  {
+    if(FilterUris != null && uri != null)
+    {
+      try { uri = FilterUris(uri); }
+      catch { }
+    }
+    return uri;
   }
 
   Service GetService(Uri uri, bool external)
