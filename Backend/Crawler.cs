@@ -1304,10 +1304,10 @@ public sealed class Crawler : IDisposable
                                           \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
-    static Regex styleRe = new Regex(@"<style>(?<css>.*?)</style>|<[^>]+\sstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
+    static Regex styleRe = new Regex(@"<style(?:\s[^>]*)?>(?<css>.*?)</style>|<[^>]+\bstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
                                      RegexOptions.Compiled | RegexOptions.IgnoreCase |
                                      RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    static Regex scriptRe = new Regex(@"<script>(.*?)</script>", RegexOptions.Compiled | RegexOptions.IgnoreCase |
+    static Regex scriptRe = new Regex(@"<script(?:\s[^>]*)?>(.*?)</script>", RegexOptions.Compiled | RegexOptions.IgnoreCase |
                                       RegexOptions.CultureInvariant | RegexOptions.Singleline);
     static Regex styleLinkRe = new Regex(@"@import ""(?<resLink>[^""]+)|url\(['""]?(?<resLink>[^)]+?)['""]?\)",
                                          RegexOptions.Compiled | RegexOptions.CultureInvariant |
