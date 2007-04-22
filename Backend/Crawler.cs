@@ -944,8 +944,11 @@ public sealed class Crawler : IDisposable
           else
           {
             DateTime startTime = DateTime.Now;
-            int size = CopyStream(response.GetResponseStream(),
-                                  new FileStream(localFileName, FileMode.Create, FileAccess.Write, FileShare.Read));
+
+            FileStream outFile = new FileStream(localFileName, FileMode.Create, FileAccess.Write);
+            if(response.ContentLength != -1) outFile.SetLength(response.ContentLength);
+            int size = CopyStream(response.GetResponseStream(), outFile);
+
             double totalSeconds = (DateTime.Now-startTime).TotalSeconds;
             if(totalSeconds == 0) totalSeconds = 0.1;
             lastBytesPerSecond = (int)Math.Round(size / totalSeconds);
