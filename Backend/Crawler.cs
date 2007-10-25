@@ -600,7 +600,7 @@ public sealed class Crawler : IDisposable
 
   public void EnqueueUri(Uri uri)
   {
-    EnqueueUri(uri, null, 0, LinkType.Link, true);
+    EnqueueUri(CleanupInputUri(uri), null, 0, LinkType.Link, true);
   }
 
   #region Mime overrides
@@ -689,7 +689,7 @@ public sealed class Crawler : IDisposable
 
     public int CurrentBytesPerSecond
     {
-      get { return lastBytesPerSecond; }
+      get { return lastBytesPerSecond; } // TODO: this method of calculation is total crap.
     }
 
     public Uri CurrentUri
@@ -832,6 +832,7 @@ public sealed class Crawler : IDisposable
         }
 
         threadActive = true; // mark that we've started doing something
+        DateTime startTime = DateTime.Now;
 
         resourceUri = resource.Uri;
         string localFileName = null, mimeType = null;
@@ -869,7 +870,7 @@ public sealed class Crawler : IDisposable
 
               if(crawler.UseCookies) Service.SaveCookies(httpResponse);
               resourceType = Crawler.GetResourceType(GetMimeType(httpResponse.ContentType));
-              response.Close();
+              httpResponse.Close();
 
               if(!crawler.WantResource(resourceType)) continue;
 
@@ -943,8 +944,6 @@ public sealed class Crawler : IDisposable
           }
           else
           {
-            DateTime startTime = DateTime.Now;
-
             FileStream outFile = new FileStream(localFileName, FileMode.Create, FileAccess.Write);
             if(response.ContentLength != -1) outFile.SetLength(response.ContentLength);
             int size = CopyStream(response.GetResponseStream(), outFile);
@@ -1083,7 +1082,8 @@ public sealed class Crawler : IDisposable
       {
         newUri = new Uri(baseUri, newUri);
       }
-      return newUri;
+
+      return Crawler.CleanupInputUri(newUri);
     }
 
     Group GetLinkMatchGroup(Match m, out LinkType type)
@@ -1402,7 +1402,8 @@ public sealed class Crawler : IDisposable
 
       Uri uri = resource.Uri;
       Debug.Assert(uri.Scheme == baseUri.Scheme && uri.Port == baseUri.Port &&
-                   string.Equals(uri.Host, baseUri.Host, StringComparison.OrdinalIgnoreCase));
+                   string.Equals(crawler.NormalizeHost(uri.Host), crawler.NormalizeHost(baseUri.Host),
+                                 StringComparison.OrdinalIgnoreCase));
 
       bool alreadyQueued = false;
       if(!forceRequeue)
@@ -1468,9 +1469,7 @@ public sealed class Crawler : IDisposable
       string baseUriPath = uri.AbsolutePath;
       if(!crawler.CaseSensitivePaths) baseUriPath = baseUriPath.ToLowerInvariant();
 
-      string query = uri.Query;
-      if(crawler.EnableUrlHacks) query = NormalizeQuery(query);
-      
+      string query = NormalizeQuery(uri.Query);
       string localFileName;
       lock(files)
       {
@@ -1706,7 +1705,7 @@ public sealed class Crawler : IDisposable
 
     void InitializeBaseDirectory()
     {
-      string dirName = baseUri.Host.ToLowerInvariant();
+      string dirName = crawler.NormalizeHost(baseUri.Host).ToLowerInvariant();
       if(baseUri.Scheme != "http") dirName += "_"+baseUri.Scheme;
       if(!baseUri.IsDefaultPort) dirName += "_"+baseUri.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
       baseDir = Path.Combine(crawler.BaseDirectory, dirName);
@@ -1717,7 +1716,7 @@ public sealed class Crawler : IDisposable
       string key = uri.AbsolutePath;
       if(!crawler.CaseSensitivePaths) key = key.ToLowerInvariant();
 
-      string query = crawler.EnableUrlHacks ? uri.Query : NormalizeQuery(uri.Query);
+      string query = NormalizeQuery(uri.Query);
       if(!string.IsNullOrEmpty(query)) key += query;
 
       return key;
@@ -1725,38 +1724,43 @@ public sealed class Crawler : IDisposable
 
     // if it looks like a query string with key/value pairs (ie. ?a=A&b=B), then sort the keys so that
     // ?id=5&page=1 and ?page=1&id=5 are considered identical.
-    static string NormalizeQuery(string query)
+    string NormalizeQuery(string query)
     {
       if(string.IsNullOrEmpty(query)) return null;
 
-      Match m = queryRe.Match(query);
-      if(!m.Success) return query;
-      
-      List<KeyValuePair<string,string>> pairs = new List<KeyValuePair<string,string>>();
-
-      CaptureCollection keys = m.Groups["key"].Captures, values = m.Groups["value"].Captures;
-      int stringLength = 0;
-      for(int i=0; i<keys.Count; i++)
+      if(crawler.EnableUrlHacks)
       {
-        KeyValuePair<string,string> pair = new KeyValuePair<string,string>(keys[i].Value, values[i].Value);
-        pairs.Add(pair);
-        stringLength += pair.Key.Length + pair.Value.Length + 1; // +1 for '=' sign
-        if(i != 0) stringLength++; // +1  for '&' sign
+        Match m = queryRe.Match(query);
+        if(!m.Success) return query;
+        
+        List<KeyValuePair<string,string>> pairs = new List<KeyValuePair<string,string>>();
+
+        CaptureCollection keys = m.Groups["key"].Captures, values = m.Groups["value"].Captures;
+        int stringLength = 0;
+        for(int i=0; i<keys.Count; i++)
+        {
+          KeyValuePair<string,string> pair = new KeyValuePair<string,string>(keys[i].Value, values[i].Value);
+          pairs.Add(pair);
+          stringLength += pair.Key.Length + pair.Value.Length + 1; // +1 for '=' sign
+          if(i != 0) stringLength++; // +1  for '&' sign
+        }
+
+        pairs.Sort(QueryKeyComparer.Instance);
+        
+        StringBuilder sb = new StringBuilder(stringLength+1);
+        sb.Append('?');
+
+        bool sep = false;
+        foreach(KeyValuePair<string,string> pair in pairs)
+        {
+          if(sep) sb.Append('&');
+          else sep = true;
+          sb.Append(pair.Key).Append('=').Append(pair.Value);
+        }
+        query = sb.ToString();
       }
 
-      pairs.Sort(QueryKeyComparer.Instance);
-      
-      StringBuilder sb = new StringBuilder(stringLength+1);
-      sb.Append('?');
-
-      bool sep = false;
-      foreach(KeyValuePair<string,string> pair in pairs)
-      {
-        if(sep) sb.Append('&');
-        else sep = true;
-        sb.Append(pair.Key).Append('=').Append(pair.Value);
-      }
-      return sb.ToString();
+      return query;
     }
 
     static string ToHex(uint value)
@@ -1840,21 +1844,15 @@ public sealed class Crawler : IDisposable
   bool AreSameHostName(Uri a, Uri b)
   {
     if(a.HostNameType != b.HostNameType) return false;
-    if(string.Equals(a.Host, b.Host, StringComparison.OrdinalIgnoreCase)) return true;
+    return string.Equals(NormalizeHost(a.Host), NormalizeHost(b.Host), StringComparison.OrdinalIgnoreCase);
+  }
 
-    if(EnableUrlHacks && a.HostNameType == UriHostNameType.Dns)
-    {
-      // assume that foo.com == www.foo.com
-      bool aWWW = a.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
-      bool bWWW = b.Host.StartsWith("www.", StringComparison.OrdinalIgnoreCase);
-      if(aWWW && !bWWW && string.Equals(a.Host, "www."+b.Host, StringComparison.OrdinalIgnoreCase) ||
-         !aWWW && bWWW && string.Equals("www."+a.Host, b.Host, StringComparison.OrdinalIgnoreCase))
-      {
-        return true;
-      }
-    }
-    
-    return false;
+  /// <summary>Normalizes the host or authority portion of a <see cref="Uri"/>, if URL hacks are enabled.</summary>
+  string NormalizeHost(string host)
+  {
+    // consider www.foo.com to be equivalent to foo.com
+    if(EnableUrlHacks && host.StartsWith("www.", StringComparison.OrdinalIgnoreCase)) host = host.Substring(4);
+    return host;
   }
 
   static bool AreSameTLD(Uri a, Uri b)
@@ -1876,6 +1874,25 @@ public sealed class Crawler : IDisposable
   void AssertInitialized()
   {
     if(!IsInitialized) throw new InvalidOperationException("The crawler has not been initialized.");
+  }
+
+  static Uri CleanupInputUri(Uri uri)
+  {
+    // fix urls with runs of slashes in the path
+    if(uri.AbsolutePath.IndexOf("//", StringComparison.Ordinal) != -1)
+    {
+      string path = uri.AbsolutePath;
+      int lastLength;
+      do // repeatedly replace double slashes with single slashes (so that //// becomes // and then /)
+      {
+        lastLength = path.Length;
+        path = path.Replace("//", "/");
+      } while(lastLength != path.Length);
+
+      uri = new Uri(uri.GetLeftPart(UriPartial.Authority) + path + uri.Query + uri.Fragment);
+    }
+
+    return uri;
   }
 
   void CrawlService(Service service)
@@ -2037,9 +2054,9 @@ public sealed class Crawler : IDisposable
     return service;
   }
 
-  static string GetServiceKey(Uri uri)
+  string GetServiceKey(Uri uri)
   {
-    return uri.Scheme + "_" + uri.Authority.ToLowerInvariant();
+    return uri.Scheme + "_" + NormalizeHost(uri.Authority).ToLowerInvariant();
   }
 
   string GetRelativeUri(string localBase, Uri absUri, LinkType type)
