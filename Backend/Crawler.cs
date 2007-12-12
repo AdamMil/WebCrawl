@@ -295,7 +295,7 @@ public sealed class Crawler : IDisposable
       if(value <= 0) throw new ArgumentOutOfRangeException();
       bool increased = value > connsPerServer;
       connsPerServer = value;
-      if(increased && currentActiveThreads < MaxConnections) CrawlServices();
+      if(running && increased && currentActiveThreads < MaxConnections) CrawlServices();
     }
   }
   
@@ -307,7 +307,7 @@ public sealed class Crawler : IDisposable
       if(value <= 0) throw new ArgumentOutOfRangeException();
       bool increased = value > maxConnections;
       maxConnections = value;
-      if(increased) CrawlServices();
+      if(running && increased) CrawlServices();
     }
   }
 
@@ -550,7 +550,7 @@ public sealed class Crawler : IDisposable
   public void Start()
   {
     AssertInitialized();
-    
+
     if(!running)
     {
       running = true;
@@ -1294,14 +1294,14 @@ public sealed class Crawler : IDisposable
 
     static Regex baseRe = new Regex(@"(?<=<base\s[^>]*href\s*=\s*""?)[^"">]+", RegexOptions.Compiled |
                                     RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    static Regex linkRe = new Regex(@"<(?:a\b[^>]*?\bhref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
-                                          (?:img|script|embed)\b[^>]*?\bsrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
-                                          i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+))|
-                                          link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+))|
-                                          applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          param\s+name=[""'](?:src|href|file|filename|data|movie5)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+))|
-                                          \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)))",
+    static Regex linkRe = new Regex(@"<(?:a\b[^>]*?\bhref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
+                                          (?:img|script|embed)\b[^>]*?\bsrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
+                                          link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          param\s+name=[""'](?:src|href|file|filename|data|movie5)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
     static Regex styleRe = new Regex(@"<style(?:\s[^>]*)?>(?<css>.*?)</style>|<[^>]+\bstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
@@ -1940,6 +1940,7 @@ public sealed class Crawler : IDisposable
 
   void CrawlServices()
   {
+    Debug.Assert(running);
     lock(services)
     {
       foreach(Service service in services.Values)
@@ -1949,10 +1950,13 @@ public sealed class Crawler : IDisposable
     }
   }
 
-  bool DirectoryIsAbove(Uri uri, Uri baseUri)
+  /// <summary>Compares the directories of two URIs. Returns <see cref="DirectoryNavigation.Same"/> if they are the
+  /// same, <see cref="DirectoryNavigation.Up"/> if <paramref name="uri"/>'s directory is above
+  /// <paramref name="baseUri"/>, <see cref="DirectoryNavigation.Down"/> if <paramref name="uri"/>'s directory is below
+  /// <paramref name="baseUri"/>, and <see cref="DirectoryNavigation.UpAndDown"/> otherwise.
+  /// </summary>
+  DirectoryNavigation CompareDirectories(Uri uri, Uri baseUri)
   {
-    // the directory is above if uri's path components are less than or equal to baseUri's path components, and all
-    // of them are equal.
     string[] segments = uri.Segments, baseSegments = baseUri.Segments;
 
     // ignore trailing items that look like filenames, because we're only interested in directories
@@ -1961,40 +1965,14 @@ public sealed class Crawler : IDisposable
     int baseLength = baseSegments.Length;
     if(baseLength != 0 && !baseSegments[baseLength-1].EndsWith("/", StringComparison.Ordinal)) baseLength--;
 
-    if(segmentsLength <= baseLength)
+    DirectoryNavigation potentialType = segmentsLength < baseLength ? DirectoryNavigation.Up :
+                                        segmentsLength > baseLength ? DirectoryNavigation.Down :
+                                        DirectoryNavigation.Same;
+    for(int i=0,end=Math.Min(segmentsLength, baseLength); i<end; i++)
     {
-      for(int i=0; i<segmentsLength; i++)
-      {
-        if(!string.Equals(segments[i], baseSegments[i], pathComparison)) return false;
-      }
-      return true;
+      if(!string.Equals(segments[i], baseSegments[i], pathComparison)) return DirectoryNavigation.UpAndDown;
     }
-
-    return false;
-  }
-
-  bool DirectoryIsBelow(Uri uri, Uri baseUri)
-  {
-    // the directory is above if uri's path components are greater than or equal to baseUri's path components, and all
-    // of them up to baseUri's length are equal.
-    string[] segments = uri.Segments, baseSegments = baseUri.Segments;
-
-    // ignore trailing items that look like filenames, because we're only interested in directories
-    int segmentsLength = segments.Length;
-    if(segmentsLength != 0 && !segments[segmentsLength-1].EndsWith("/", StringComparison.Ordinal)) segmentsLength--;
-    int baseLength = baseSegments.Length;
-    if(baseLength != 0 && !baseSegments[baseLength-1].EndsWith("/", StringComparison.Ordinal)) baseLength--;
-
-    if(segmentsLength >= baseLength)
-    {
-      for(int i=0; i<baseLength; i++)
-      {
-        if(!string.Equals(segments[i], baseSegments[i], pathComparison)) return false;
-      }
-      return true;
-    }
-
-    return false;
+    return potentialType;
   }
 
   void Dispose(bool finalizing)
@@ -2162,11 +2140,8 @@ public sealed class Crawler : IDisposable
         {
           if(AreSameHostName(uri, baseUri))
           {
-            if(dirNav == DirectoryNavigation.Down && !DirectoryIsBelow(uri, baseUri) ||
-               dirNav == DirectoryNavigation.Up   && !DirectoryIsAbove(uri, baseUri))
-            {
-              continue;
-            }
+            DirectoryNavigation comparison = CompareDirectories(uri, baseUri);
+            if(dirNav != comparison && comparison != DirectoryNavigation.Same) continue;
           }
           else if(domainNav == DomainNavigation.SameHostName)
           {

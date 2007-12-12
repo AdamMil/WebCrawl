@@ -45,7 +45,7 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.68 copyright Adam Milazzo 2006-2007");
+    Console.WriteLine("Crawler v. 0.69 copyright Adam Milazzo 2006-2007");
 
     crawl.AddStandardMimeOverrides();
 
