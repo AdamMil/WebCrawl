@@ -3,9 +3,19 @@ using System.Collections.Generic;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using WebCrawl.Backend;
-// hello
+
 namespace WebCrawl
 {
+
+[Flags]
+enum ProgressMask
+{
+  None=0, UrlQueued=1<<(int)Status.UrlQueued, DownloadStarted=1<<(int)Status.DownloadStarted,
+  DownloadFinished=1<<(int)Status.DownloadFinished, NonFatalErrorOccurred=1<<(int)Status.NonFatalErrorOccurred,
+  FatalErrorOccurred=1<<(int)Status.FatalErrorOccurred,
+  AnyErrorOccurred=NonFatalErrorOccurred | FatalErrorOccurred,
+  All=UrlQueued|DownloadStarted|DownloadFinished|AnyErrorOccurred
+}
 
 static class App
 {
@@ -13,6 +23,8 @@ static class App
     RegexOptions.Singleline | RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture;
 
   static readonly Crawler crawl = new Crawler();
+  static ProgressMask progressMask;
+  static bool urlHacks;
 
   static App()
   {
@@ -23,11 +35,10 @@ static class App
     propertyMap["dirnav"]          = "DirectoryNavigation";
     propertyMap["domainnav"]       = "DomainNavigation";
     propertyMap["download"]        = "Download";
-    propertyMap["urlhacks"]        = "EnableUrlHacks";
-    propertyMap["errorfiles"]      = "GenerateFilesOnError";
+    propertyMap["errorfiles"]      = "GenerateErrorFiles";
     propertyMap["maxconns"]        = "MaxConnections";
     propertyMap["connsperserver"]  = "MaxConnectionsPerServer";
-    propertyMap["maxdepth"]        = "MaxDepth";
+    propertyMap["depthlimit"]      = "DepthLimit";
     propertyMap["maxsize"]         = "MaxFileSize";
     propertyMap["maxqueries"]      = "MaxQueryStringsPerFile";
     propertyMap["maxqueued"]       = "MaxQueuedLinks";
@@ -35,7 +46,6 @@ static class App
     propertyMap["maxretries"]      = "MaxRetries";
     propertyMap["passiveftp"]      = "PassiveFtp";
     propertyMap["language"]        = "PreferredLanguage";
-    propertyMap["progress"]        = "ProgressFilter";
     propertyMap["rewritelinks"]    = "RewriteLinks";
     propertyMap["readtimeout"]     = "ReadTimeout";
     propertyMap["transfertimeout"] = "TransferTimeout";
@@ -45,12 +55,14 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.69 copyright Adam Milazzo 2006-2007");
+    Console.WriteLine("Crawler v. 0.70 copyright Adam Milazzo 2006-2007");
+
+    progressMask = ProgressMask.DownloadStarted | ProgressMask.AnyErrorOccurred;
+    crawl.Download = Download.Everything | Download.ExternalResources | Download.PrioritizeHtml;
 
     crawl.AddStandardMimeOverrides();
-
-    crawl.ProgressFilter = ProgressType.FatalErrorOccurred;
     crawl.Progress += new ProgressHandler(crawl_Progress);
+    crawl.FilterUris += crawl_FilterUris;
 
     while(true)
     {
@@ -173,11 +185,11 @@ static class App
               "Preferred language = {18}\nProgress notifications = {19}\nLink rewriting = {20}\n"+
               "Read timeout = {21}\nTransfer timeout = {22}\nEnable cookies = {23}\nUser agent = {24}\n",
               crawl.BaseDirectory, crawl.CaseSensitivePaths, crawl.ConnectionIdleTimeout, crawl.DefaultReferrer,
-              crawl.DirectoryNavigation, crawl.DomainNavigation, crawl.Download, crawl.EnableUrlHacks,
-              crawl.GenerateFilesOnError, crawl.IsInitialized, crawl.MaxConnections, crawl.MaxConnectionsPerServer,
-              GetMax(crawl.MaxDepth), GetMax(crawl.MaxQueryStringsPerFile), GetMax(crawl.MaxQueuedLinks),
+              crawl.DirectoryNavigation, crawl.DomainNavigation, crawl.Download, urlHacks,
+              crawl.GenerateErrorFiles, crawl.IsInitialized, crawl.MaxConnections, crawl.MaxConnectionsPerServer,
+              GetMax(crawl.DepthLimit), GetMax(crawl.MaxQueryStringsPerFile), GetMax(crawl.MaxQueuedLinks),
               crawl.MaxRedirects, GetMax(crawl.MaxRetries), crawl.PassiveFtp, crawl.PreferredLanguage,
-              crawl.ProgressFilter, crawl.RewriteLinks, GetMax(crawl.ReadTimeout), GetMax(crawl.TransferTimeout),
+              progressMask, crawl.RewriteLinks, GetMax(crawl.ReadTimeout), GetMax(crawl.TransferTimeout),
               crawl.UseCookies, crawl.UserAgent, GetMax(crawl.MaxFileSize)));
             break;
 
@@ -189,7 +201,6 @@ static class App
               Console.WriteLine("Usage: set PROPERTY VALUE");
             }
             if(words.Length < 2 || !SetProperty(words[0], words[1]))
-
             {
               Console.Write("Available options:\n"+
                             "  caseSens, idleTimeout, referrer, dirNav, domainNav, download, urlHacks,\n"+
@@ -246,11 +257,6 @@ static class App
       regex = new Regex(filter.Substring(1), UriRegexOptions | RegexOptions.Compiled);
     }
     
-    if(positiveFilters == null && negativeFilters == null && changeFilters == null)
-    {
-      crawl.FilterUris += crawl_FilterUris;
-    }
-
     if(filter[0] == '+')
     {
       if(positiveFilters == null) positiveFilters = new List<Regex>();
@@ -272,7 +278,6 @@ static class App
   {
     if(positiveFilters != null || negativeFilters != null || changeFilters != null)
     {
-      crawl.FilterUris -= crawl_FilterUris;
       positiveFilters = negativeFilters = null;
       changeFilters = null;
     }
@@ -309,25 +314,29 @@ static class App
       for(int i=0; i<negativeFilters.Count; i++) if(negativeFilters[i].IsMatch(uriString)) return null;
     }
 
+    if(urlHacks) uri = UrlFilters.NormalizeQuery(UrlFilters.StripWWWPrefix(uri));
+
     return uri;
   }
 
   static void crawl_Progress(Resource resource, string message)
   {
+    if((progressMask & (ProgressMask)(1<<(int)resource.Status)) == 0) return;
+    
     string prefix, suffix = null;
     switch(resource.Status)
     {
-      case ProgressType.DownloadStarted: prefix = ". "; break;
-      case ProgressType.DownloadFinished: prefix = "- "; break;
-      case ProgressType.NonFatalErrorOccurred:
+      case Status.DownloadStarted: prefix = ". "; break;
+      case Status.DownloadFinished: prefix = "- "; break;
+      case Status.NonFatalErrorOccurred:
         prefix = "? ";
         suffix = " ("+resource.ResponseCode+" - "+message+")";
         break;
-      case ProgressType.FatalErrorOccurred:
+      case Status.FatalErrorOccurred:
         prefix = "! ";
-        suffix = " ('"+message+"' from "+resource.Referrer+")";
+        suffix = " ('"+message+"' from "+resource.Referrer.ToString()+")";
         break;
-      case ProgressType.UrlQueued:
+      case Status.UrlQueued:
         prefix = "+["+resource.Depth+"] ";
         suffix = " (from "+resource.Referrer+")";
         break;
@@ -339,13 +348,25 @@ static class App
   
   static object GetMax(int max)
   {
-    return max == 0 ? "undefined" : (object)max;
+    return max == Crawler.Infinite ? "undefined" : (object)max;
   }
 
   static bool SetProperty(string property, string value)
   {
+    property = property.ToLowerInvariant();
+    if(property == "progress")
+    {
+      progressMask = (ProgressMask)Enum.Parse(typeof(ProgressMask), value);
+      return true;
+    }
+    else if(property == "urlhacks")
+    {
+      urlHacks = (bool)Convert.ChangeType(value, typeof(bool));
+      return true;
+    }
+
     string propertyName;
-    if(!propertyMap.TryGetValue(property.ToLowerInvariant(), out propertyName)) return false;
+    if(!propertyMap.TryGetValue(property, out propertyName)) return false;
 
     PropertyInfo prop = crawl.GetType().GetProperty(propertyName);
     MethodInfo setter = prop.GetSetMethod();
