@@ -58,7 +58,6 @@ static class App
     Console.WriteLine("Crawler v. 0.71 copyright Adam Milazzo 2006-2007");
 
     progressMask = ProgressMask.DownloadStarted | ProgressMask.AnyErrorOccurred;
-    crawl.Download = ResourceType.Everything | ResourceType.ExternalResources | ResourceType.PrioritizeHtml;
 
     crawl.AddStandardMimeOverrides();
     crawl.Progress += new ProgressHandler(crawl_Progress);

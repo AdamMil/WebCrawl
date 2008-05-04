@@ -103,8 +103,9 @@ public partial class MainForm : Form
     ResourceType want = 0;
     if(download.GetItemChecked(0)) want |= ResourceType.Html;
     if(download.GetItemChecked(1)) want |= ResourceType.NonHtml;
-    if(download.GetItemChecked(2)) want |= ResourceType.PrioritizeHtml;
-    else if(download.GetItemChecked(3)) want |= ResourceType.PrioritizeNonHtml;
+    if(download.GetItemChecked(2)) want |= ResourceType.ExternalResources;
+    if(download.GetItemChecked(3)) want |= ResourceType.PrioritizeHtml;
+    else if(download.GetItemChecked(4)) want |= ResourceType.PrioritizeNonHtml;
     crawler.Download = want;
     crawler.RewriteLinks = chkLinkRewrite.Checked;
     crawler.UseCookies = chkCookies.Checked;
@@ -272,8 +273,9 @@ public partial class MainForm : Form
     connsPerServer.Text = LimitToString(crawler.MaxConnectionsPerServer);
     download.SetItemChecked(0, (crawler.Download & ResourceType.Html) != 0);
     download.SetItemChecked(1, (crawler.Download & ResourceType.NonHtml) != 0);
-    download.SetItemChecked(2, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeHtml);
-    download.SetItemChecked(3, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeNonHtml);
+    download.SetItemChecked(2, (crawler.Download & ResourceType.ExternalResources) != 0);
+    download.SetItemChecked(3, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeHtml);
+    download.SetItemChecked(4, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeNonHtml);
     chkLinkRewrite.Checked = crawler.RewriteLinks;
     chkCookies.Checked = crawler.UseCookies;
     chkGenerateErrorFiles.Checked = crawler.GenerateErrorFiles;
@@ -606,8 +608,8 @@ public partial class MainForm : Form
 
     if(e.NewValue == CheckState.Checked)
     {
-      if(e.Index == 2) download.SetItemChecked(3, false);
-      else if(e.Index == 3) download.SetItemChecked(2, false);
+      if(e.Index == 3) download.SetItemChecked(4, false);
+      else if(e.Index == 4) download.SetItemChecked(3, false);
     }
 
     OnFormChanged(sender, e);
@@ -899,8 +901,9 @@ public partial class MainForm : Form
     dirNav.Items.Add(DirectoryNavigation.Up);
     dirNav.Items.Add(DirectoryNavigation.UpAndDown);
 
-    download.Items.Add("Download Html");
-    download.Items.Add("Download Non-Html");
+    download.Items.Add("Save Html");
+    download.Items.Add("Save Non-Html");
+    download.Items.Add("Save External Resources");
     download.Items.Add("Prioritize Html");
     download.Items.Add("Prioritize Non-Html");
 

@@ -76,15 +76,15 @@ namespace WebCrawl.Gui
       System.Windows.Forms.ColumnHeader speedColumn;
       System.Windows.Forms.ColumnHeader sizeColumn;
       System.Windows.Forms.ColumnHeader hostColumn;
+      System.Windows.Forms.Label lblSpeed;
+      System.Windows.Forms.Label lblQueued;
+      System.Windows.Forms.Label lblConnections;
       System.Windows.Forms.Label lblErrors;
       System.Windows.Forms.ColumnHeader urlColumn2;
       System.Windows.Forms.ColumnHeader messageColumn;
       System.Windows.Forms.ColumnHeader referrerColumn;
       System.Windows.Forms.TabPage consoleTab;
       System.Windows.Forms.TextBox txtInput;
-      System.Windows.Forms.Label lblSpeed;
-      System.Windows.Forms.Label lblQueued;
-      System.Windows.Forms.Label lblConnections;
       this.exitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
       this.crawlerMenu = new System.Windows.Forms.ToolStripMenuItem();
       this.startCrawlingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -137,11 +137,11 @@ namespace WebCrawl.Gui
       this.btnRevert4 = new System.Windows.Forms.Button();
       this.btnApply4 = new System.Windows.Forms.Button();
       this.downloads = new System.Windows.Forms.ListView();
-      this.recentErrors = new System.Windows.Forms.ListView();
-      this.txtConsole = new System.Windows.Forms.TextBox();
       this.speed = new System.Windows.Forms.Label();
       this.queued = new System.Windows.Forms.Label();
       this.connections = new System.Windows.Forms.Label();
+      this.recentErrors = new System.Windows.Forms.ListView();
+      this.txtConsole = new System.Windows.Forms.TextBox();
       menuStrip = new System.Windows.Forms.MenuStrip();
       fileMenu = new System.Windows.Forms.ToolStripMenuItem();
       newProjectMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -190,15 +190,15 @@ namespace WebCrawl.Gui
       speedColumn = new System.Windows.Forms.ColumnHeader();
       sizeColumn = new System.Windows.Forms.ColumnHeader();
       hostColumn = new System.Windows.Forms.ColumnHeader();
+      lblSpeed = new System.Windows.Forms.Label();
+      lblQueued = new System.Windows.Forms.Label();
+      lblConnections = new System.Windows.Forms.Label();
       lblErrors = new System.Windows.Forms.Label();
       urlColumn2 = new System.Windows.Forms.ColumnHeader();
       messageColumn = new System.Windows.Forms.ColumnHeader();
       referrerColumn = new System.Windows.Forms.ColumnHeader();
       consoleTab = new System.Windows.Forms.TabPage();
       txtInput = new System.Windows.Forms.TextBox();
-      lblSpeed = new System.Windows.Forms.Label();
-      lblQueued = new System.Windows.Forms.Label();
-      lblConnections = new System.Windows.Forms.Label();
       menuStrip.SuspendLayout();
       statusStrip.SuspendLayout();
       tabControl.SuspendLayout();
@@ -482,7 +482,7 @@ namespace WebCrawl.Gui
       this.download.FormattingEnabled = true;
       this.download.Location = new System.Drawing.Point(109, 147);
       this.download.Name = "download";
-      this.download.Size = new System.Drawing.Size(120, 64);
+      this.download.Size = new System.Drawing.Size(146, 79);
       this.download.TabIndex = 12;
       this.download.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.download_ItemCheck);
       // 
@@ -1241,7 +1241,7 @@ namespace WebCrawl.Gui
       progressSplitter.Panel2.Controls.Add(this.recentErrors);
       progressSplitter.Panel2MinSize = 100;
       progressSplitter.Size = new System.Drawing.Size(423, 247);
-      progressSplitter.SplitterDistance = 122;
+      progressSplitter.SplitterDistance = 121;
       progressSplitter.TabIndex = 11;
       // 
       // lblCurrentDownloads
@@ -1269,7 +1269,7 @@ namespace WebCrawl.Gui
       this.downloads.Location = new System.Drawing.Point(0, 17);
       this.downloads.MultiSelect = false;
       this.downloads.Name = "downloads";
-      this.downloads.Size = new System.Drawing.Size(423, 102);
+      this.downloads.Size = new System.Drawing.Size(423, 101);
       this.downloads.TabIndex = 3;
       this.downloads.UseCompatibleStateImageBehavior = false;
       this.downloads.View = System.Windows.Forms.View.Details;
@@ -1293,6 +1293,63 @@ namespace WebCrawl.Gui
       // 
       hostColumn.Text = "Host";
       hostColumn.Width = 75;
+      // 
+      // speed
+      // 
+      this.speed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      this.speed.Location = new System.Drawing.Point(305, 105);
+      this.speed.Name = "speed";
+      this.speed.Size = new System.Drawing.Size(117, 13);
+      this.speed.TabIndex = 24;
+      this.speed.Text = "0 kbps";
+      // 
+      // lblSpeed
+      // 
+      lblSpeed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      lblSpeed.AutoSize = true;
+      lblSpeed.Location = new System.Drawing.Point(230, 105);
+      lblSpeed.Name = "lblSpeed";
+      lblSpeed.Size = new System.Drawing.Size(78, 13);
+      lblSpeed.TabIndex = 23;
+      lblSpeed.Text = "Current Speed:";
+      // 
+      // queued
+      // 
+      this.queued.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      this.queued.Location = new System.Drawing.Point(183, 105);
+      this.queued.Name = "queued";
+      this.queued.Size = new System.Drawing.Size(47, 13);
+      this.queued.TabIndex = 22;
+      this.queued.Text = "0";
+      // 
+      // lblQueued
+      // 
+      lblQueued.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      lblQueued.AutoSize = true;
+      lblQueued.Location = new System.Drawing.Point(109, 105);
+      lblQueued.Name = "lblQueued";
+      lblQueued.Size = new System.Drawing.Size(76, 13);
+      lblQueued.TabIndex = 21;
+      lblQueued.Text = "Queued Links:";
+      // 
+      // connections
+      // 
+      this.connections.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      this.connections.Location = new System.Drawing.Point(66, 105);
+      this.connections.Name = "connections";
+      this.connections.Size = new System.Drawing.Size(44, 13);
+      this.connections.TabIndex = 20;
+      this.connections.Text = "0";
+      // 
+      // lblConnections
+      // 
+      lblConnections.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      lblConnections.AutoSize = true;
+      lblConnections.Location = new System.Drawing.Point(-1, 105);
+      lblConnections.Name = "lblConnections";
+      lblConnections.Size = new System.Drawing.Size(69, 13);
+      lblConnections.TabIndex = 19;
+      lblConnections.Text = "Connections:";
       // 
       // lblErrors
       // 
@@ -1318,7 +1375,7 @@ namespace WebCrawl.Gui
       this.recentErrors.Location = new System.Drawing.Point(0, 16);
       this.recentErrors.MultiSelect = false;
       this.recentErrors.Name = "recentErrors";
-      this.recentErrors.Size = new System.Drawing.Size(423, 83);
+      this.recentErrors.Size = new System.Drawing.Size(423, 84);
       this.recentErrors.TabIndex = 12;
       this.recentErrors.UseCompatibleStateImageBehavior = false;
       this.recentErrors.View = System.Windows.Forms.View.Details;
@@ -1373,63 +1430,6 @@ namespace WebCrawl.Gui
       this.txtConsole.Size = new System.Drawing.Size(413, 214);
       this.txtConsole.TabIndex = 0;
       this.txtConsole.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
-      // 
-      // speed
-      // 
-      this.speed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      this.speed.Location = new System.Drawing.Point(305, 104);
-      this.speed.Name = "speed";
-      this.speed.Size = new System.Drawing.Size(117, 13);
-      this.speed.TabIndex = 24;
-      this.speed.Text = "0 kbps";
-      // 
-      // lblSpeed
-      // 
-      lblSpeed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      lblSpeed.AutoSize = true;
-      lblSpeed.Location = new System.Drawing.Point(230, 104);
-      lblSpeed.Name = "lblSpeed";
-      lblSpeed.Size = new System.Drawing.Size(78, 13);
-      lblSpeed.TabIndex = 23;
-      lblSpeed.Text = "Current Speed:";
-      // 
-      // queued
-      // 
-      this.queued.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      this.queued.Location = new System.Drawing.Point(183, 104);
-      this.queued.Name = "queued";
-      this.queued.Size = new System.Drawing.Size(47, 13);
-      this.queued.TabIndex = 22;
-      this.queued.Text = "0";
-      // 
-      // lblQueued
-      // 
-      lblQueued.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      lblQueued.AutoSize = true;
-      lblQueued.Location = new System.Drawing.Point(109, 104);
-      lblQueued.Name = "lblQueued";
-      lblQueued.Size = new System.Drawing.Size(76, 13);
-      lblQueued.TabIndex = 21;
-      lblQueued.Text = "Queued Links:";
-      // 
-      // connections
-      // 
-      this.connections.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      this.connections.Location = new System.Drawing.Point(66, 104);
-      this.connections.Name = "connections";
-      this.connections.Size = new System.Drawing.Size(44, 13);
-      this.connections.TabIndex = 20;
-      this.connections.Text = "0";
-      // 
-      // lblConnections
-      // 
-      lblConnections.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
-      lblConnections.AutoSize = true;
-      lblConnections.Location = new System.Drawing.Point(-1, 104);
-      lblConnections.Name = "lblConnections";
-      lblConnections.Size = new System.Drawing.Size(69, 13);
-      lblConnections.TabIndex = 19;
-      lblConnections.Text = "Connections:";
       // 
       // MainForm
       // 
