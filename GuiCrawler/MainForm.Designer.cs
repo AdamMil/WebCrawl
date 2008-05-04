@@ -241,7 +241,7 @@ namespace WebCrawl.Gui
       newProjectMenuItem.Name = "newProjectMenuItem";
       newProjectMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.N)));
       newProjectMenuItem.Size = new System.Drawing.Size(230, 22);
-      newProjectMenuItem.Text = "&New Project...";
+      newProjectMenuItem.Text = "&New Project";
       newProjectMenuItem.Click += new System.EventHandler(this.newProjectMenuItem_Click);
       // 
       // openProjectMenuItem
@@ -257,7 +257,7 @@ namespace WebCrawl.Gui
       saveProjectMenuItem.Name = "saveProjectMenuItem";
       saveProjectMenuItem.ShortcutKeys = ((System.Windows.Forms.Keys)((System.Windows.Forms.Keys.Control | System.Windows.Forms.Keys.S)));
       saveProjectMenuItem.Size = new System.Drawing.Size(230, 22);
-      saveProjectMenuItem.Text = "&Save Project...";
+      saveProjectMenuItem.Text = "&Save Project";
       saveProjectMenuItem.Click += new System.EventHandler(this.saveProjectMenuItem_Click);
       // 
       // saveProjectAsMenuItem
