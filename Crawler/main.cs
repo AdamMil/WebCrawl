@@ -284,7 +284,7 @@ static class App
 
   static Uri crawl_FilterUris(Uri uri)
   {
-    string uriString = uri.ToString();
+    string uriString = uri.AbsoluteUri;
 
     if(changeFilters != null)
     {
@@ -333,7 +333,7 @@ static class App
         break;
       case Status.FatalErrorOccurred:
         prefix = "! ";
-        suffix = " ('"+message+"' from "+resource.Referrer.ToString()+")";
+        suffix = " ('"+message+"' from "+resource.Referrer.AbsoluteUri+")";
         break;
       case Status.UrlQueued:
         prefix = "+["+resource.Depth+"] ";
