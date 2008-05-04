@@ -54,7 +54,7 @@ public enum DomainNavigation
 /// to allow multiple types of resources to be downloaded.
 /// </summary>
 [Flags]
-public enum Download
+public enum ResourceType
 {
   /// <summary>A value used internally to indicate that the type of a file is unknown.</summary>
   Unknown=0,
@@ -120,7 +120,7 @@ public enum Status
 /// the resource is stored in the file given by <paramref name="contentFileName"/>, and if the content is changed, the
 /// new content should be written to that same file.
 /// </remarks>
-public delegate void ContentFilter(string url, string mimeType, Download resourceType, string contentFileName);
+public delegate void ContentFilter(Uri url, string mimeType, ResourceType resourceType, string contentFileName);
 
 /// <summary>A handler that is called at various stages in the downloading and processing of a resource.</summary>
 /// <param name="resource">The <see cref="Resource"/> that to which the progress update pertains. The current status
@@ -139,6 +139,23 @@ public delegate void ProgressHandler(Resource resource, string extraMessage);
 public delegate Uri UriFilter(Uri uri);
 #endregion
 
+#region Download
+/// <summary>A structure representing a snapshot of a thread's current download.</summary>
+public struct Download
+{
+  public Download(Resource resource, int speed)
+  {
+    Resource     = resource;
+    CurrentSpeed = speed;
+  }
+
+  /// <summary>The resource being downloaded.</summary>
+  public readonly Resource Resource;
+  /// <summary>The speed at which the resource is being downloaded.</summary>
+  public readonly int CurrentSpeed;
+}
+#endregion
+
 #region MimeOverride
 /// <summary>A structure that allows the MIME type of a resource to be assumed based on its file extension.</summary>
 public struct MimeOverride
@@ -154,6 +171,7 @@ public struct MimeOverride
     {
       throw new ArgumentException("Extension cannot be null, and mime type cannot be empty.");
     }
+    if(extension.StartsWith(".")) extension = extension.Substring(1);
     this.Extension = extension;
     this.MimeType  = mimeType;
   }
@@ -178,9 +196,6 @@ public sealed class Resource
     this.external = external;
     
     responseCode = HttpStatusCode.Unused;
-    responseText = localPath = contentType = null;
-    status       = Status.None;
-    failures     = 0;
   }
 
   internal Resource(BinaryReader reader)
@@ -199,6 +214,8 @@ public sealed class Resource
     status = (Status)reader.ReadInt32();
     type = (Crawler.LinkType)reader.ReadInt32();
     external = reader.ReadBool();
+    size = reader.ReadInt32();
+    downloaded = reader.ReadInt32();
   }
 
   /// <summary>Gets the URI of the resource that linked to this resource, or null if this is a root URI.</summary>
@@ -270,7 +287,19 @@ public sealed class Resource
   {
     get { return external; }
   }
-  
+
+  /// <summary>Gets the number of bytes downloaded so far.</summary>
+  public long Downloaded
+  {
+    get { return downloaded; }
+  }
+
+  /// <summary>Gets the total size of the resource, or -1 if the size is not known.</summary>
+  public long TotalSize
+  {
+    get { return size; }
+  }
+
   /// <summary>Gets whether the resource contains a valid URI.</summary>
   internal bool IsValid
   {
@@ -283,7 +312,7 @@ public sealed class Resource
     writer.WriteStringWithLength(localPath);
     writer.WriteStringWithLength(responseText);
     writer.WriteStringWithLength(contentType);
-    writer.WriteStringWithLength(uri.AbsoluteUri);
+    writer.WriteStringWithLength(uri.ToString());
     writer.WriteStringWithLength(referrer == null ? null : referrer.ToString());
     writer.Write((int)responseCode);
     writer.Write(depth);
@@ -291,8 +320,11 @@ public sealed class Resource
     writer.Write((int)status);
     writer.Write((int)type);
     writer.Write(external);
+    writer.Write(size);
+    writer.Write(downloaded);
   }
-  
+
+  internal long size=-1, downloaded;
   internal string localPath, responseText, contentType;
   Uri uri, referrer;
   internal HttpStatusCode responseCode;
@@ -312,8 +344,8 @@ public sealed class Crawler : IDisposable
   /// </summary>
   public const int Infinite = -1;
 
-  /// <summary>An integer used to identify the version of the state file.</summary>
-  const int StateVersion = 1;
+  /// <summary>An integer used to identify the version of the settings file.</summary>
+  const int SettingsVersion = 1;
 
   ~Crawler()
   {
@@ -327,14 +359,25 @@ public sealed class Crawler : IDisposable
   /// <summary>An event that allows a <see cref="ProgressHandler"/> to be attached, to recieve progress updates.</summary>
   public event ProgressHandler Progress;
   
-  /// <summary>Gets the base directory, into which the downloaded data will be saved.</summary>
+  /// <summary>Gets or sets the base directory, into which the downloaded data will be saved.</summary>
   /// <remarks>This property is only valid after the crawler has been initialized.</remarks>
   public string BaseDirectory
   {
-    get
+    get { return baseDir; }
+    set
     {
-      AssertInitialized();
-      return baseDir;
+      if(!IsStopped)
+      {
+        throw new InvalidOperationException("This property cannot be changed unless the crawler is stopped.");
+      }
+
+      string newValue = value == null ?
+        null : value.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
+      if(newValue != baseDir)
+      {
+        baseDir = newValue;
+        baseDirInitialized = false;
+      }
     }
   }
 
@@ -365,8 +408,6 @@ public sealed class Crawler : IDisposable
   {
     get
     {
-      if(!IsInitialized) return 0;
-
       int bytesPerSecond = 0;
       lock(threads)
       {
@@ -387,8 +428,6 @@ public sealed class Crawler : IDisposable
   {
     get
     {
-      if(!IsInitialized) return 0;
-
       int totalLinks = 0;
       lock(services)
       {
@@ -431,7 +470,7 @@ public sealed class Crawler : IDisposable
   /// be prioritized.
   /// </summary>
   /// <remarks>The default is <see cref="Backend.Download.Everything"/> | <see cref="Backend.Download.PrioritizeHtml"/>.</remarks>
-  public Download Download
+  public ResourceType Download
   {
     get { return download; }
     set { download = value; }
@@ -446,10 +485,30 @@ public sealed class Crawler : IDisposable
     set { errorFiles = value; }
   }
 
-  /// <summary>Gets whether the crawler has been initialized.</summary>
-  public bool IsInitialized
+  /// <summary>Gets whether all queued resources have finished downloading.</summary>
+  public bool IsDone
   {
-    get { return baseDir != null; }
+    get { return CurrentDownloadCount == 0 && CurrentLinksQueued == 0; }
+  }
+
+  /// <summary>Gets whether the crawler is running. This will return false if the crawler is stopping, but not yet
+  /// stopped.
+  /// </summary>
+  public bool IsRunning
+  {
+    get { return running; }
+  }
+
+  /// <summary>Gets whether the crawler is completely stopped.</summary>
+  public bool IsStopped
+  {
+    get { return !running && CurrentDownloadCount == 0; }
+  }
+
+  /// <summary>Gets whether the crawler is stopping, but is not yet stopped.</summary>
+  public bool IsStopping
+  {
+    get { return !running && CurrentDownloadCount != 0; }
   }
 
   /// <summary>Gets or sets the number of connections allowed to a single host.</summary>
@@ -506,7 +565,7 @@ public sealed class Crawler : IDisposable
   /// that there is no limit.
   /// </summary>
   /// <remarks>Resources greater than the maximum size will be truncated. The default value is 50 megabytes.</remarks>
-  public int MaxFileSize
+  public long MaxFileSize
   {
     get { return maxSize; }
     set
@@ -676,26 +735,12 @@ public sealed class Crawler : IDisposable
     set { userAgent = value; }
   }
 
-  /// <summary>Initializes the crawler.</summary>
-  /// <param name="baseDirectory">The directory into which all downloaded data will be saved.</param>
-  public void Initialize(string baseDirectory)
-  {
-    if(disposed) throw new ObjectDisposedException("Crawler");
-    Deinitialize();
-    Directory.CreateDirectory(baseDirectory);
-    baseDir = baseDirectory.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
-  }
-
   /// <summary>Terminates all downloads and deinitializes the crawler.</summary>
   public void Deinitialize()
   {
-    if(IsInitialized)
-    {
-      Terminate(0); // stop all downloads and threads
-      ClearUris();  // remove all base URIs
-      services.Clear(); // remove all services
-      baseDir = null;
-    }
+    Terminate(0); // stop all downloads and threads
+    services.Clear(); // remove all services
+    baseDirInitialized = false;
   }
 
   /// <summary>Deinitializes and disposes the crawler.</summary>
@@ -707,19 +752,42 @@ public sealed class Crawler : IDisposable
 
   /// <summary>Adds a base URI to the crawler.</summary>
   /// <param name="uri">The URI to add.</param>
+  public void AddBaseUri(Uri uri)
+  {
+    AddBaseUri(uri, true, false);
+  }
+
+  /// <summary>Adds a base URI to the crawler.</summary>
+  /// <param name="uri">The URI to add.</param>
+  /// <param name="enqueue">Whether the URI should also be added to the download queue. The URI will not be enqueued
+  /// if it has been enqueued previously, however.
+  /// </param>
+  public void AddBaseUri(Uri uri, bool enqueue)
+  {
+    AddBaseUri(uri, enqueue, false);
+  }
+
+  /// <summary>Adds a base URI to the crawler.</summary>
+  /// <param name="uri">The URI to add.</param>
   /// <param name="enqueue">Whether the URI should also be added to the download queue.</param>
+  /// <param name="force">Whether to enqueue the URI even if it's already been enqueued.</param>
   /// <remarks>The base URIs added to the crawler, together with the <see cref="DirectoryNavigation"/>, 
   /// <see cref="DomainNavigation"/>, and <see cref="Download"/> properties, determine which links and resources the
   /// crawler is allowed to visit and download.
   /// </remarks>
-  public void AddBaseUri(Uri uri, bool enqueue)
+  public void AddBaseUri(Uri uri, bool enqueue, bool force)
   {
     if(uri == null) throw new ArgumentNullException();
     if(!uri.IsAbsoluteUri) throw new ArgumentNullException("The uri must be absolute.");
-    AssertInitialized();
 
     lock(baseUris) baseUris.Add(uri);
-    if(enqueue) EnqueueUri(uri, null, 0, LinkType.Link, true);
+    if(enqueue) EnqueueUri(uri, null, 0, LinkType.Link, force);
+  }
+
+  /// <summary>Removes all base URIs from the crawler.</summary>
+  public void ClearBaseUris()
+  {
+    baseUris.Clear();
   }
 
   /// <summary>Removes all enqueued URIs from the crawler.</summary>
@@ -729,22 +797,27 @@ public sealed class Crawler : IDisposable
     {
       foreach(Service service in services.Values) service.Clear();
     }
-    baseUris.Clear();
+  }
+
+  /// <summary>Returns a list of the base URIs added to the crawler.</summary>
+  public Uri[] GetBaseUris()
+  {
+    return baseUris.ToArray();
   }
 
   /// <summary>Returns a list of the resources that are currently being downloaded.</summary>
-  public Uri[] GetDownloadingUris()
+  public Download[] GetCurrentDownloads()
   {
-    List<Uri> uris = new List<Uri>(currentActiveThreads);
+    List<Download> resources = new List<Download>(currentActiveThreads);
     lock(threads)
     {
       foreach(ConnectionThread thread in threads)
       {
-        Uri uri = thread.CurrentUri;
-        if(uri != null) uris.Add(uri);
+        Resource resource = thread.CurrentResource;
+        if(resource != null) resources.Add(new Download(resource, thread.CurrentBytesPerSecond));
       }
     }
-    return uris.ToArray();
+    return resources.ToArray();
   }
 
   /// <summary>Removes all enqueued URIs matching the given regular expression.</summary>
@@ -758,41 +831,87 @@ public sealed class Crawler : IDisposable
     }
   }
 
-  /// <summary>Saves the current state of the crawler to the given <see cref="BinaryWriter"/>.</summary>
-  /// <remarks>The crawler must be stopped and finished with all downloads before its state can be saved.</remarks>
-  public void SaveState(BinaryWriter writer)
+  /// <summary>Loads the crawler settings from the given <see cref="BinaryReader"/>.</summary>
+  public void LoadSettings(BinaryReader reader)
   {
-    AssertInitialized();
-    if(running || CurrentDownloadCount != 0)
+    if(!IsStopped) throw new InvalidOperationException("Settings cannot be loaded while the crawler is running.");
+
+    int version = reader.ReadInt32();
+    if(version < 1 || version > SettingsVersion)
     {
-      throw new InvalidOperationException("The crawler must be fully stopped to save its state.");
+      throw new ArgumentException("The version file is not supported by this version of the software.");
     }
 
-    writer.Write(StateVersion);
+    BaseDirectory     = reader.ReadStringWithLength();
+    string str = reader.ReadStringWithLength();
+    DefaultReferrer   = str == null ? null : new Uri(str);
+    PreferredLanguage = reader.ReadStringWithLength();
+    UserAgent         = reader.ReadStringWithLength();
 
-    writer.WriteStringWithLength(userAgent);
-    writer.WriteStringWithLength(language);
-    writer.WriteStringWithLength(defaultReferrer.ToString());
-    writer.WriteStringWithLength(baseDir);
-    
-    writer.Write((int)dirNav);
-    writer.Write((int)domainNav);
-    writer.Write((int)download);
-    writer.Write(idleTimeout);
-    writer.Write(connsPerServer);
-    writer.Write(maxConnections);
-    writer.Write(depthLimit);
-    writer.Write(retries);
-    writer.Write(maxQueuedLinks);
-    writer.Write(ioTimeout);
-    writer.Write(transferTimeout);
-    writer.Write(maxRedirects);
-    writer.Write(maxQueryStrings);
-    writer.Write(rewriteLinks);
-    writer.Write(useCookies);
-    writer.Write(errorFiles);
-    writer.Write(passiveFtp);
-    writer.Write(caseSensitive);
+    CaseSensitivePaths      = reader.ReadBool();
+    ConnectionIdleTimeout   = reader.ReadInt32();
+    DepthLimit              = reader.ReadInt32();
+    DirectoryNavigation     = (DirectoryNavigation)reader.ReadInt32();
+    DomainNavigation        = (DomainNavigation)reader.ReadInt32();
+    Download                = (ResourceType)reader.ReadInt32();
+    GenerateErrorFiles      = reader.ReadBool();
+    MaxConnections          = reader.ReadInt32();
+    MaxConnectionsPerServer = reader.ReadInt32();
+    MaxFileSize             = reader.ReadInt64();
+    MaxQueuedLinks          = reader.ReadInt32();
+    MaxQueryStringsPerFile  = reader.ReadInt32();
+    MaxRedirects            = reader.ReadInt32();
+    MaxRetries              = reader.ReadInt32();
+    PassiveFtp              = reader.ReadBool();
+    ReadTimeout             = reader.ReadInt32();
+    RewriteLinks            = reader.ReadBool();
+    TransferTimeout         = reader.ReadInt32();
+    UseCookies              = reader.ReadBool();
+
+    lock(mimeOverrides)
+    {
+      mimeOverrides.Clear();
+      int count = reader.ReadInt32();
+      while(count-- > 0) mimeOverrides[reader.ReadStringWithLength()] = reader.ReadStringWithLength();
+    }
+
+    lock(baseUris)
+    {
+      baseUris.Clear();
+      int count = reader.ReadInt32();
+      while(count-- > 0) baseUris.Add(new Uri(reader.ReadStringWithLength()));
+    }
+  }
+
+  /// <summary>Saves the current crawler settings to the given <see cref="BinaryWriter"/>.</summary>
+  public void SaveSettings(BinaryWriter writer)
+  {
+    writer.Write(SettingsVersion);
+
+    writer.WriteStringWithLength(BaseDirectory);
+    writer.WriteStringWithLength(DefaultReferrer == null ? null : DefaultReferrer.ToString());
+    writer.WriteStringWithLength(PreferredLanguage);
+    writer.WriteStringWithLength(UserAgent);
+
+    writer.Write(CaseSensitivePaths);
+    writer.Write(ConnectionIdleTimeout);
+    writer.Write(DepthLimit);
+    writer.Write((int)DirectoryNavigation);
+    writer.Write((int)DomainNavigation);
+    writer.Write((int)Download);
+    writer.Write(GenerateErrorFiles);
+    writer.Write(MaxConnections);
+    writer.Write(MaxConnectionsPerServer);
+    writer.Write(MaxFileSize);
+    writer.Write(MaxQueuedLinks);
+    writer.Write(MaxQueryStringsPerFile);
+    writer.Write(MaxRedirects);
+    writer.Write(MaxRetries);
+    writer.Write(PassiveFtp);
+    writer.Write(ReadTimeout);
+    writer.Write(RewriteLinks);
+    writer.Write(TransferTimeout);
+    writer.Write(UseCookies);
 
     writer.Write(mimeOverrides.Count);
     foreach(KeyValuePair<string,string> pair in mimeOverrides)
@@ -800,18 +919,26 @@ public sealed class Crawler : IDisposable
       writer.WriteStringWithLength(pair.Key);
       writer.WriteStringWithLength(pair.Value);
     }
-    
-    writer.Write(services.Count);
-    foreach(Service service in services.Values) service.Write(writer);
-    
+
     writer.Write(baseUris.Count);
-    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.AbsoluteUri);
+    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.ToString());
   }
 
   /// <summary>Starts the crawler, so it will begin downloading resources.</summary>
   public void Start()
   {
-    AssertInitialized();
+    if(disposed) throw new ObjectDisposedException("Crawler");
+
+    if(!baseDirInitialized)
+    {
+      if(string.IsNullOrEmpty(baseDir))
+      {
+        throw new InvalidOperationException("The BaseDirectory property has not been set yet.");
+      }
+
+      Directory.CreateDirectory(baseDir);
+      baseDirInitialized = true;
+    }
 
     if(!running)
     {
@@ -824,7 +951,6 @@ public sealed class Crawler : IDisposable
   /// <remarks>The crawler can be resumed by calling <see cref="Start"/>.</remarks>
   public void Stop()
   {
-    AssertInitialized();
     running = false;
 
     lock(threads)
@@ -843,8 +969,6 @@ public sealed class Crawler : IDisposable
     {
       throw new ArgumentOutOfRangeException("The timeout must be non-negative or Infinite.");
     }
-
-    if(!IsInitialized) return;
 
     lock(threads)
     {
@@ -872,10 +996,19 @@ public sealed class Crawler : IDisposable
     }
   }
 
-  /// <summary>Adds a link to a resource to be downloaded.</summary>
+  /// <summary>Adds a link to a resource to be downloaded. The link will be enqueued even if it's already been
+  /// enqueued.
+  /// </summary>
   public void EnqueueUri(Uri uri)
   {
-    EnqueueUri(CleanupInputUri(uri), null, 0, LinkType.Link, true);
+    EnqueueUri(uri, true);
+  }
+
+  /// <summary>Adds a link to a resource to be downloaded.</summary>
+  /// <param name="force">If true, the uri will be enqueued even if it's previously been enqueued.</param>
+  public void EnqueueUri(Uri uri, bool force)
+  {
+    EnqueueUri(CleanupInputUri(uri), null, 0, LinkType.Link, force);
   }
 
   #region Mime overrides
@@ -994,7 +1127,7 @@ public sealed class Crawler : IDisposable
       int index = 0;
       foreach(KeyValuePair<string,string> pair in mimeOverrides)
       {
-        array[index] = new MimeOverride(pair.Key, pair.Value);
+        array[index++] = new MimeOverride(pair.Key, pair.Value);
       }
     }
     
@@ -1039,15 +1172,15 @@ public sealed class Crawler : IDisposable
     /// <summary>Gets an approximation of the current throughput of this connection thread.</summary>
     public int CurrentBytesPerSecond
     {
-      get { return IsIdle ? 0 : lastBytesPerSecond; } // TODO: this method of calculation is crap. it should be improved.
+      get { return IsIdle ? 0 : currentSpeed; } // TODO: this method of calculation is crap. it should be improved.
     }
 
-    /// <summary>Gets the <see cref="Uri"/> of the resource currently being downloaded, or null of no resource is being
+    /// <summary>Gets the <see cref="Resource"/> currently being downloaded, or null if no resource is being
     /// downloaded.
     /// </summary>
-    public Uri CurrentUri
+    public Resource CurrentResource
     {
-      get { return resourceUri; }
+      get { return resource; }
     }
 
     /// <summary>Gets whether the connection thread is not currently processing resources.</summary>
@@ -1184,9 +1317,9 @@ public sealed class Crawler : IDisposable
       CleanupRequest();
       Disassociate();
 
-      lastBytesPerSecond = 0;
-      thread     = null;
-      shouldQuit = false;
+      currentSpeed = 0;
+      thread       = null;
+      shouldQuit   = false;
     }
 
     /// <summary>Downloads the resources queued in the associated service until all have been downloaded, or the thread
@@ -1211,13 +1344,14 @@ public sealed class Crawler : IDisposable
         }
 
         threadActive = true; // mark that we've started doing something
-        DateTime startTime = DateTime.Now;
+        Stopwatch timer = new Stopwatch();
+        timer.Start();
 
         resourceUri = resource.Uri;
         try
         {
-          bool crawlerWantsEverything = (crawler.Download & Download.TypeMask) == Download.Everything;
-          Download resourceType = Download.Unknown;
+          bool crawlerWantsEverything = (crawler.Download & ResourceType.TypeMask) == ResourceType.Everything;
+          ResourceType resourceType = ResourceType.Unknown;
 
           if(!crawlerWantsEverything)
           {
@@ -1225,15 +1359,15 @@ public sealed class Crawler : IDisposable
             resourceType = crawler.GuessResourceType(resource);
 
             // we can't be sure about resources from FTP (there is no Content-Type header), so assume they're non-html
-            if(resourceType == Download.Unknown &&
+            if(resourceType == ResourceType.Unknown &&
                string.Equals(resourceUri.Scheme, Uri.UriSchemeFtp, StringComparison.Ordinal))
             {
-              resourceType = Download.NonHtml;
+              resourceType = ResourceType.NonHtml;
             }
 
             // skip non-Html resources if we don't want them. we'll still need to download Html resources to scan them
             // for links
-            if(resourceType == Download.NonHtml && !crawler.WantResource(resourceType)) continue;
+            if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType)) continue;
           }
 
           request = WebRequest.Create(resourceUri);
@@ -1244,7 +1378,7 @@ public sealed class Crawler : IDisposable
           {
             SetupHttpRequest(httpRequest);
 
-            if(!crawlerWantsEverything && resourceType == Download.Unknown)
+            if(!crawlerWantsEverything && resourceType == ResourceType.Unknown)
             {
               httpRequest.Method = "HEAD"; // use a HEAD request to determine the content type before downloading it
               httpResponse = (HttpWebResponse)httpRequest.GetResponse();
@@ -1254,7 +1388,9 @@ public sealed class Crawler : IDisposable
               resourceType = Crawler.GetResourceType(resource.ContentType);
               httpResponse.Close();
 
-              if(!crawler.WantResource(resourceType)) continue;
+              // if it's not HTML and we don't want it, go to the next resource. we still need to download HTML to find
+              // the links.
+              if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType)) continue;
 
               request = WebRequest.Create(resourceUri); // create a new request to retrieve the actual content
               httpRequest = (HttpWebRequest)request;
@@ -1311,7 +1447,7 @@ public sealed class Crawler : IDisposable
           else if(response is FtpWebResponse)
           {
             resource.responseText = ((FtpWebResponse)response).StatusDescription;
-            resource.contentType  = resourceType == Download.Html ? "text/html" : "application/octet-stream";
+            resource.contentType  = resourceType == ResourceType.Html ? "text/html" : "application/octet-stream";
           }
 
           if(resource.LocalPath == null) // if we later discovered that this is not what we want, just close the stream
@@ -1321,17 +1457,14 @@ public sealed class Crawler : IDisposable
           else
           {
             FileStream outFile = new FileStream(resource.LocalPath, FileMode.Create, FileAccess.Write);
+            resource.size = response.ContentLength;
             if(response.ContentLength != -1) outFile.SetLength(response.ContentLength);
-            int size = CopyStream(response.GetResponseStream(), outFile);
-
-            double totalSeconds = (DateTime.Now-startTime).TotalSeconds;
-            if(totalSeconds == 0) totalSeconds = 0.1; // prevent division by zero
-            lastBytesPerSecond = (int)Math.Round(size / totalSeconds);
+            CopyStream(response.GetResponseStream(), outFile, timer);
 
             // allow the user to filter the content
-            crawler.DoFilterContent(resourceUri.AbsoluteUri, resource.ContentType, resourceType, resource.LocalPath);
+            crawler.DoFilterContent(resourceUri, resource.ContentType, resourceType, resource.LocalPath);
 
-            if(resourceType == Download.Html)
+            if(resourceType == ResourceType.Html)
             {
               Encoding encoding = GetEncoding(httpResponse);
               string html;
@@ -1363,7 +1496,7 @@ public sealed class Crawler : IDisposable
                 catch(ArgumentException) { }
               }
 
-              if(!crawler.RewriteLinks || !crawler.WantResource(Download.Html))
+              if(!crawler.RewriteLinks || !crawler.WantResource(ResourceType.Html))
               {
                 ScanForLinks(html);
               }
@@ -1379,7 +1512,7 @@ public sealed class Crawler : IDisposable
               }
 
               // if we didn't actually want this file, delete it
-              if(!crawler.WantResource(Download.Html)) service.FreeLocalFileName(resource.Uri, resource.LocalPath);
+              if(!crawler.WantResource(ResourceType.Html)) service.FreeLocalFileName(resource.Uri, resource.LocalPath);
             }
           }
 
@@ -1402,22 +1535,25 @@ public sealed class Crawler : IDisposable
     /// <summary>Copies data from the source stream to the destination stream. The amount of data copied will be
     /// limited by <see cref="Crawler.MaxFileSize"/>.
     /// </summary>
-    /// <returns>Returns the number of bytes copied.</returns>
-    int CopyStream(Stream source, Stream dest)
+    void CopyStream(Stream source, Stream dest, Stopwatch timer)
     {
       try
       {
         byte[] dataBuffer = new byte[65536];
-        int totalSize = 0;
-        while(crawler.MaxFileSize == Infinite || totalSize < crawler.MaxFileSize)
+        resource.downloaded = 0;
+        while(crawler.MaxFileSize == Infinite || resource.downloaded < crawler.MaxFileSize)
         {
-          int read = source.Read(dataBuffer, 0, crawler.MaxFileSize == Infinite ? dataBuffer.Length :
-                                                  Math.Min(crawler.MaxFileSize-totalSize, dataBuffer.Length));
+          int read = source.Read(dataBuffer, 0,
+                                 crawler.MaxFileSize == Infinite ? dataBuffer.Length :
+                                   (int)Math.Min(crawler.MaxFileSize-resource.downloaded, dataBuffer.Length));
           if(read == 0) break;
           dest.Write(dataBuffer, 0, read);
-          totalSize += read;
+          resource.downloaded += read;
+
+          long elapsedMs = timer.ElapsedMilliseconds;
+          if(elapsedMs == 0) elapsedMs = 1; // prevent division by zero
+          currentSpeed = (int)(resource.downloaded*1000L / elapsedMs);
         }
-        return totalSize;
       }
       finally
       {
@@ -1666,8 +1802,8 @@ public sealed class Crawler : IDisposable
 
     /// <summary>The thread responsible for downloading resources from the associated service.</summary>
     Thread thread;
-    /// <summary>A value containing the download speed recorded for the last resource downloaded.</summary>
-    int lastBytesPerSecond;
+    /// <summary>A value containing the current download speed, in bytes per second.</summary>
+    int currentSpeed;
     /// <summary>If true, the download thread should terminate as soon as the current download finishes.</summary>
     bool shouldQuit;
     /// <summary>If true, the thread has started and examined the service queue at least once.</summary>
@@ -1928,7 +2064,7 @@ public sealed class Crawler : IDisposable
         }
         else
         {
-          resource = (crawler.Download & Download.PrioritizeNonHtml) != 0 ?
+          resource = (crawler.Download & ResourceType.PrioritizeNonHtml) != 0 ?
             resources.RemoveLast() : resources.RemoveFirst();
           return true;
         }
@@ -2126,7 +2262,7 @@ public sealed class Crawler : IDisposable
     /// <summary>Adds the given resource to the front or back of the queue depending on its apparent resource type.</summary>
     void EnqueueCore(Resource resource)
     {
-      if(crawler.GuessResourceType(resource) == Download.Html) resources.Insert(0, resource);
+      if(crawler.GuessResourceType(resource) == ResourceType.Html) resources.Insert(0, resource);
       else resources.Add(resource);
     }
 
@@ -2192,7 +2328,7 @@ public sealed class Crawler : IDisposable
     {
       string extension = Path.GetExtension(path);
       return type != LinkType.Link ||
-             !string.IsNullOrEmpty(extension) && crawler.GuessResourceType(extension) != Download.Html ?
+             !string.IsNullOrEmpty(extension) && crawler.GuessResourceType(extension) != ResourceType.Html ?
                extension : ".html";
     }
 
@@ -2346,12 +2482,6 @@ public sealed class Crawler : IDisposable
     }
   }
 
-  /// <summary>Throws an exception if the crawler is not yet initialized.</summary>
-  void AssertInitialized()
-  {
-    if(!IsInitialized) throw new InvalidOperationException("The crawler has not been initialized.");
-  }
-
   /// <summary>Given an input URI, attempts to clean up errors in its format, such as doubled slashes.</summary>
   static Uri CleanupInputUri(Uri uri)
   {
@@ -2464,7 +2594,7 @@ public sealed class Crawler : IDisposable
   }
 
   /// <summary>Filters the content of a downloaded resource through the user-supplied filters.</summary>
-  void DoFilterContent(string url, string mimeType, Download resourceType, string fileName)
+  void DoFilterContent(Uri url, string mimeType, ResourceType resourceType, string fileName)
   {
     if(FilterContent != null)
     {
@@ -2483,7 +2613,7 @@ public sealed class Crawler : IDisposable
     {
       Resource resource = new Resource(uri, referrer, depth, type, external);
       Service service = GetService(uri);
-      service.Enqueue(resource);
+      service.Enqueue(resource, force);
       if(running) CrawlService(service);
       return true;
     }
@@ -2564,32 +2694,32 @@ public sealed class Crawler : IDisposable
   }
 
   /// <summary>Given a MIME type of a document, returns its resource type.</summary>
-  static Download GetResourceType(string mimeType)
+  static ResourceType GetResourceType(string mimeType)
   {
     bool isHtml = string.Equals(mimeType, "text/html",  StringComparison.OrdinalIgnoreCase) ||
                   string.Equals(mimeType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase) ||
                   string.Equals(mimeType, "text/xhtml", StringComparison.OrdinalIgnoreCase) || // incorrect but in use
                   string.Equals(mimeType, "text/xml", StringComparison.OrdinalIgnoreCase); // incorrect but in use
-    return isHtml ? Download.Html : Download.NonHtml;
+    return isHtml ? ResourceType.Html : ResourceType.NonHtml;
   }
 
   /// <summary>Given a resource's URI, attempts to guess the resource type based on its file extension.</summary>
-  Download GuessResourceType(Uri uri)
+  ResourceType GuessResourceType(Uri uri)
   {
     string[] segments = uri.Segments;
-    if(segments.Length == 0) return Download.Unknown;
+    if(segments.Length == 0) return ResourceType.Unknown;
     return GuessResourceType(Path.GetExtension(segments[segments.Length-1]));
   }
 
   /// <summary>Given a <see cref="Resource"/>, attempts to guess the resource type.</summary>
-  Download GuessResourceType(Resource resource)
+  ResourceType GuessResourceType(Resource resource)
   {
     return string.IsNullOrEmpty(resource.ContentType) ?
       GuessResourceType(resource.Uri) : GetResourceType(resource.ContentType);
   }
 
   /// <summary>Given a file extension, including the leading period, attempts to guess the resource type.</summary>
-  Download GuessResourceType(string extension)
+  ResourceType GuessResourceType(string extension)
   {
     string mimeType;
 
@@ -2602,7 +2732,7 @@ public sealed class Crawler : IDisposable
       lock(mimeOverrides) mimeOverrides.TryGetValue(extension.ToLowerInvariant(), out mimeType);
     }
 
-    return mimeType == null ? Download.Unknown : GetResourceType(mimeType);
+    return mimeType == null ? ResourceType.Unknown : GetResourceType(mimeType);
   }
 
   /// <summary>Idles a connection thread. An idle thread will disassociate itself after completing the current
@@ -2626,8 +2756,8 @@ public sealed class Crawler : IDisposable
     }
 
     // skip non-html files if we aren't downloading them
-    Download resourceType = type != LinkType.Link ? Download.NonHtml : GuessResourceType(uri);
-    if(resourceType == Download.NonHtml && (Download & Download.NonHtml) == 0)
+    ResourceType resourceType = type != LinkType.Link ? ResourceType.NonHtml : GuessResourceType(uri);
+    if(resourceType == ResourceType.NonHtml && (Download & ResourceType.NonHtml) == 0)
     {
       return false;
     }
@@ -2668,7 +2798,7 @@ public sealed class Crawler : IDisposable
     isExternal = true; // if we got here, it's an external link (outside all base uris)
 
     // it's external, but if it's a resource of an internal file, then it's OK
-    return type != LinkType.Link && (download & Download.ExternalResources) != 0;
+    return type != LinkType.Link && (download & ResourceType.ExternalResources) != 0;
   }
 
   /// <summary>Issues a progress report for the given error.</summary>
@@ -2738,9 +2868,9 @@ public sealed class Crawler : IDisposable
   }
 
   /// <summary>Determines whether the given resource type is one that the crawler is interested in downloading.</summary>
-  bool WantResource(Download resourceType)
+  bool WantResource(ResourceType resourceType)
   {
-    Debug.Assert(resourceType == Download.Html || resourceType == Download.NonHtml);
+    Debug.Assert(resourceType == ResourceType.Html || resourceType == ResourceType.NonHtml);
     return (download & resourceType) != 0;
   }
 
@@ -2767,12 +2897,13 @@ public sealed class Crawler : IDisposable
   /// <summary>The allowed domain navigation.</summary>
   DomainNavigation domainNav = DomainNavigation.SameHostName;
   /// <summary>The types of resources the crawler is interested in downloading, and their priorities.</summary>
-  Download download = Download.Everything | Download.PrioritizeHtml;
+  ResourceType download = ResourceType.Everything | ResourceType.PrioritizeHtml;
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, depthLimit = 50, retries = 1,
       maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
-      maxQueryStrings = 500, maxSize = 50*1024*1024;
+      maxQueryStrings = 500;
+  long maxSize = 50*1024*1024;
   bool rewriteLinks = true, useCookies = true, errorFiles, passiveFtp = true, caseSensitive=true, disposed,
-       running;
+       running, baseDirInitialized;
 
   /// <summary>Matches the domain name (not including subdomains) in a host name.</summary>
   static Regex domainRe = new Regex(@"[\w-]+\.[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
@@ -2781,6 +2912,7 @@ public sealed class Crawler : IDisposable
 }
 #endregion
 
+#region UrlFilters
 /// <summary>Provides some common URL filters that can be used.</summary>
 public static class UrlFilters
 {
@@ -2853,5 +2985,6 @@ public static class UrlFilters
   static readonly Regex queryRe = new Regex(@"^\?(?<key>[\w\-/.!~*'()]+)=(?<value>[\w\-/.!~*'()]*)(?:&(?<key>[\w\-/.!~*'()]+)=(?<value>[\w\-/.!~*'()]*))*&?$",
                                             RegexOptions.Compiled | RegexOptions.ECMAScript);
 }
+#endregion
 
 } // namespace WebCrawl.Backend

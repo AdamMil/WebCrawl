@@ -55,10 +55,10 @@ static class App
 
   static void Main()
   {
-    Console.WriteLine("Crawler v. 0.70 copyright Adam Milazzo 2006-2007");
+    Console.WriteLine("Crawler v. 0.71 copyright Adam Milazzo 2006-2007");
 
     progressMask = ProgressMask.DownloadStarted | ProgressMask.AnyErrorOccurred;
-    crawl.Download = Download.Everything | Download.ExternalResources | Download.PrioritizeHtml;
+    crawl.Download = ResourceType.Everything | ResourceType.ExternalResources | ResourceType.PrioritizeHtml;
 
     crawl.AddStandardMimeOverrides();
     crawl.Progress += new ProgressHandler(crawl_Progress);
@@ -125,7 +125,7 @@ static class App
             }
             else
             {
-              crawl.Initialize(parameters);
+              crawl.BaseDirectory = parameters;
               Console.WriteLine("Crawler initialized. Add base URIs with 'addbase' and start it with 'start'.");
             }
             break;
@@ -164,12 +164,12 @@ static class App
             Console.Write(string.Format("{0} current connections\n{1} queued links\n{2}kps download rate\n",
                                         crawl.CurrentDownloadCount, crawl.CurrentLinksQueued,
                                         Math.Round(crawl.CurrentBytesPerSecond/1024.0, 1)));
-            Uri[] uris = crawl.GetDownloadingUris();
-            if(uris.Length != 0)
+            Download[] resources = crawl.GetCurrentDownloads();
+            if(resources.Length != 0)
             {
               Console.WriteLine();
               Console.WriteLine("URIs being downloaded:");
-              foreach(Uri uri in uris) Console.WriteLine(uri.AbsoluteUri);
+              foreach(Download download in resources) Console.WriteLine(download.Resource.Uri.AbsoluteUri);
             }
             break;
           }
@@ -178,7 +178,7 @@ static class App
             Console.Write(string.Format(
               "Base directory = {0}\nCase sensitive = {1}\nIdle timeout = {2}\nDefault referrer = {3}\n"+
               "Directory navigation = {4}\nDomain navigation = {5}\nDownload filter = {6}\nUrl hacks enabled = {7}\n"+
-              "Generate error files = {8}\nIs inititialized = {9}\nMax. connections = {10}\n"+
+              "Generate error files = {8}\nMax. connections = {10}\n"+
               "Max. connections per server = {11}\nMax. crawl depth = {12}\nMax. file size = {25}\n"+
               "Max. query strings per file = {13}\n"+
               "Max. queued links = {14}\nMax. redirects = {15}\nMax. retries = {16}\nPassive ftp = {17}\n"+
@@ -186,7 +186,7 @@ static class App
               "Read timeout = {21}\nTransfer timeout = {22}\nEnable cookies = {23}\nUser agent = {24}\n",
               crawl.BaseDirectory, crawl.CaseSensitivePaths, crawl.ConnectionIdleTimeout, crawl.DefaultReferrer,
               crawl.DirectoryNavigation, crawl.DomainNavigation, crawl.Download, urlHacks,
-              crawl.GenerateErrorFiles, crawl.IsInitialized, crawl.MaxConnections, crawl.MaxConnectionsPerServer,
+              crawl.GenerateErrorFiles, null, crawl.MaxConnections, crawl.MaxConnectionsPerServer,
               GetMax(crawl.DepthLimit), GetMax(crawl.MaxQueryStringsPerFile), GetMax(crawl.MaxQueuedLinks),
               crawl.MaxRedirects, GetMax(crawl.MaxRetries), crawl.PassiveFtp, crawl.PreferredLanguage,
               progressMask, crawl.RewriteLinks, GetMax(crawl.ReadTimeout), GetMax(crawl.TransferTimeout),
@@ -285,7 +285,7 @@ static class App
 
   static Uri crawl_FilterUris(Uri uri)
   {
-    string uriString = uri.AbsoluteUri;
+    string uriString = uri.ToString();
 
     if(changeFilters != null)
     {
@@ -346,7 +346,7 @@ static class App
     Console.WriteLine(prefix + resource.Uri.PathAndQuery + suffix);
   }
   
-  static object GetMax(int max)
+  static object GetMax(long max)
   {
     return max == Crawler.Infinite ? "undefined" : (object)max;
   }
@@ -379,7 +379,7 @@ static class App
 
   static bool VerifyInitialized()
   {
-    if(crawl.IsInitialized)
+    if(!string.IsNullOrEmpty(crawl.BaseDirectory))
     {
       return true;
     }
