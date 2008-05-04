@@ -200,11 +200,13 @@ public partial class MainForm : Form
   {
     if(ProjectOpen && !CloseProject()) return false;
 
-    crawler         = new Crawler();
-    extraUrls       = new List<Uri>();
-    positiveFilters = new List<Filter>();
-    negativeFilters = new List<Filter>();
-    changeFilters   = new List<ChangeFilter>();
+    crawler          = new Crawler();
+    extraUrls        = new List<Uri>();
+    positiveFilters  = new List<Filter>();
+    negativeFilters  = new List<Filter>();
+    changeFilters    = new List<ChangeFilter>();
+    clearDownloadDir = normalizeHosts = normalizeQueries = false;
+
     crawler.AddStandardMimeOverrides();
     crawler.FilterUris += crawler_FilterUris;
     crawler.Progress   += crawler_Progress;
