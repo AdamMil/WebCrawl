@@ -393,7 +393,7 @@ namespace WebCrawl.Gui
       this.txtBaseUrls.Multiline = true;
       this.txtBaseUrls.Name = "txtBaseUrls";
       this.txtBaseUrls.Size = new System.Drawing.Size(305, 58);
-      this.txtBaseUrls.TabIndex = 19;
+      this.txtBaseUrls.TabIndex = 1;
       this.txtBaseUrls.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.txtBaseUrls.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -404,7 +404,7 @@ namespace WebCrawl.Gui
       lblBaseUrls.Location = new System.Drawing.Point(3, 6);
       lblBaseUrls.Name = "lblBaseUrls";
       lblBaseUrls.Size = new System.Drawing.Size(82, 26);
-      lblBaseUrls.TabIndex = 18;
+      lblBaseUrls.TabIndex = 0;
       lblBaseUrls.Text = "Base Urls\n(one per line)";
       lblBaseUrls.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -414,7 +414,7 @@ namespace WebCrawl.Gui
       this.chkGenerateErrorFiles.Location = new System.Drawing.Point(261, 194);
       this.chkGenerateErrorFiles.Name = "chkGenerateErrorFiles";
       this.chkGenerateErrorFiles.Size = new System.Drawing.Size(119, 17);
-      this.chkGenerateErrorFiles.TabIndex = 15;
+      this.chkGenerateErrorFiles.TabIndex = 17;
       this.chkGenerateErrorFiles.Text = "Generate Error Files";
       this.chkGenerateErrorFiles.UseVisualStyleBackColor = true;
       this.chkGenerateErrorFiles.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -425,7 +425,7 @@ namespace WebCrawl.Gui
       this.chkCookies.Location = new System.Drawing.Point(261, 171);
       this.chkCookies.Name = "chkCookies";
       this.chkCookies.Size = new System.Drawing.Size(64, 17);
-      this.chkCookies.TabIndex = 14;
+      this.chkCookies.TabIndex = 16;
       this.chkCookies.Text = "Cookies";
       this.chkCookies.UseVisualStyleBackColor = true;
       this.chkCookies.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -436,7 +436,7 @@ namespace WebCrawl.Gui
       this.chkLinkRewrite.Location = new System.Drawing.Point(261, 148);
       this.chkLinkRewrite.Name = "chkLinkRewrite";
       this.chkLinkRewrite.Size = new System.Drawing.Size(93, 17);
-      this.chkLinkRewrite.TabIndex = 13;
+      this.chkLinkRewrite.TabIndex = 15;
       this.chkLinkRewrite.Text = "Link Rewriting";
       this.chkLinkRewrite.UseVisualStyleBackColor = true;
       this.chkLinkRewrite.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -446,7 +446,7 @@ namespace WebCrawl.Gui
       this.connsPerServer.Location = new System.Drawing.Point(293, 121);
       this.connsPerServer.Name = "connsPerServer";
       this.connsPerServer.Size = new System.Drawing.Size(39, 20);
-      this.connsPerServer.TabIndex = 10;
+      this.connsPerServer.TabIndex = 12;
       this.connsPerServer.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.connsPerServer.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -456,7 +456,7 @@ namespace WebCrawl.Gui
       lblConnsPerServer.Location = new System.Drawing.Point(172, 125);
       lblConnsPerServer.Name = "lblConnsPerServer";
       lblConnsPerServer.Size = new System.Drawing.Size(119, 13);
-      lblConnsPerServer.TabIndex = 9;
+      lblConnsPerServer.TabIndex = 11;
       lblConnsPerServer.Text = "Connections Per Server";
       lblConnsPerServer.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -465,7 +465,7 @@ namespace WebCrawl.Gui
       this.maxConnections.Location = new System.Drawing.Point(109, 121);
       this.maxConnections.Name = "maxConnections";
       this.maxConnections.Size = new System.Drawing.Size(39, 20);
-      this.maxConnections.TabIndex = 8;
+      this.maxConnections.TabIndex = 10;
       this.maxConnections.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.maxConnections.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -475,7 +475,7 @@ namespace WebCrawl.Gui
       lblConns.Location = new System.Drawing.Point(3, 125);
       lblConns.Name = "lblConns";
       lblConns.Size = new System.Drawing.Size(89, 13);
-      lblConns.TabIndex = 7;
+      lblConns.TabIndex = 9;
       lblConns.Text = "Max Connections";
       lblConns.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -486,7 +486,7 @@ namespace WebCrawl.Gui
       this.download.Location = new System.Drawing.Point(109, 147);
       this.download.Name = "download";
       this.download.Size = new System.Drawing.Size(146, 79);
-      this.download.TabIndex = 12;
+      this.download.TabIndex = 14;
       this.download.ItemCheck += new System.Windows.Forms.ItemCheckEventHandler(this.download_ItemCheck);
       // 
       // lblDownload
@@ -495,7 +495,7 @@ namespace WebCrawl.Gui
       lblDownload.Location = new System.Drawing.Point(3, 150);
       lblDownload.Name = "lblDownload";
       lblDownload.Size = new System.Drawing.Size(55, 13);
-      lblDownload.TabIndex = 11;
+      lblDownload.TabIndex = 13;
       lblDownload.Text = "Download";
       lblDownload.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -506,7 +506,7 @@ namespace WebCrawl.Gui
       this.domainNav.Location = new System.Drawing.Point(293, 95);
       this.domainNav.Name = "domainNav";
       this.domainNav.Size = new System.Drawing.Size(121, 21);
-      this.domainNav.TabIndex = 6;
+      this.domainNav.TabIndex = 8;
       this.domainNav.SelectedIndexChanged += new System.EventHandler(this.OnFormChanged);
       // 
       // lblDomainNav
@@ -515,7 +515,7 @@ namespace WebCrawl.Gui
       lblDomainNav.Location = new System.Drawing.Point(194, 99);
       lblDomainNav.Name = "lblDomainNav";
       lblDomainNav.Size = new System.Drawing.Size(97, 13);
-      lblDomainNav.TabIndex = 5;
+      lblDomainNav.TabIndex = 7;
       lblDomainNav.Text = "Domain Navigation";
       lblDomainNav.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -526,7 +526,7 @@ namespace WebCrawl.Gui
       this.dirNav.Location = new System.Drawing.Point(109, 95);
       this.dirNav.Name = "dirNav";
       this.dirNav.Size = new System.Drawing.Size(83, 21);
-      this.dirNav.TabIndex = 4;
+      this.dirNav.TabIndex = 6;
       this.dirNav.SelectedIndexChanged += new System.EventHandler(this.OnFormChanged);
       // 
       // lblDirNav
@@ -535,7 +535,7 @@ namespace WebCrawl.Gui
       lblDirNav.Location = new System.Drawing.Point(3, 99);
       lblDirNav.Name = "lblDirNav";
       lblDirNav.Size = new System.Drawing.Size(103, 13);
-      lblDirNav.TabIndex = 3;
+      lblDirNav.TabIndex = 5;
       lblDirNav.Text = "Directory Navigation";
       lblDirNav.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -545,7 +545,7 @@ namespace WebCrawl.Gui
       this.btnRevert.Location = new System.Drawing.Point(342, 218);
       this.btnRevert.Name = "btnRevert";
       this.btnRevert.Size = new System.Drawing.Size(75, 23);
-      this.btnRevert.TabIndex = 17;
+      this.btnRevert.TabIndex = 19;
       this.btnRevert.Text = "Revert";
       this.btnRevert.UseVisualStyleBackColor = true;
       this.btnRevert.Click += new System.EventHandler(this.OnRevertClicked);
@@ -556,7 +556,7 @@ namespace WebCrawl.Gui
       this.btnApply.Location = new System.Drawing.Point(261, 218);
       this.btnApply.Name = "btnApply";
       this.btnApply.Size = new System.Drawing.Size(75, 23);
-      this.btnApply.TabIndex = 16;
+      this.btnApply.TabIndex = 18;
       this.btnApply.Text = "&Apply";
       this.btnApply.UseVisualStyleBackColor = true;
       this.btnApply.Click += new System.EventHandler(this.OnApplyClicked);
@@ -567,7 +567,7 @@ namespace WebCrawl.Gui
       browseOutDir.Location = new System.Drawing.Point(339, 70);
       browseOutDir.Name = "browseOutDir";
       browseOutDir.Size = new System.Drawing.Size(75, 20);
-      browseOutDir.TabIndex = 2;
+      browseOutDir.TabIndex = 4;
       browseOutDir.Text = "Browse...";
       browseOutDir.UseVisualStyleBackColor = true;
       browseOutDir.Click += new System.EventHandler(this.browseOutDir_Click);
@@ -579,7 +579,7 @@ namespace WebCrawl.Gui
       this.txtOutDir.Location = new System.Drawing.Point(109, 70);
       this.txtOutDir.Name = "txtOutDir";
       this.txtOutDir.Size = new System.Drawing.Size(224, 20);
-      this.txtOutDir.TabIndex = 1;
+      this.txtOutDir.TabIndex = 3;
       this.txtOutDir.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.txtOutDir.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -590,7 +590,7 @@ namespace WebCrawl.Gui
       lblOutDir.Location = new System.Drawing.Point(3, 74);
       lblOutDir.Name = "lblOutDir";
       lblOutDir.Size = new System.Drawing.Size(100, 13);
-      lblOutDir.TabIndex = 0;
+      lblOutDir.TabIndex = 2;
       lblOutDir.Text = "Output Directory";
       lblOutDir.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -640,7 +640,7 @@ namespace WebCrawl.Gui
       this.additionalUrls.Multiline = true;
       this.additionalUrls.Name = "additionalUrls";
       this.additionalUrls.Size = new System.Drawing.Size(328, 43);
-      this.additionalUrls.TabIndex = 27;
+      this.additionalUrls.TabIndex = 1;
       this.additionalUrls.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.additionalUrls.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -650,7 +650,7 @@ namespace WebCrawl.Gui
       lblAdditionalUrls.Location = new System.Drawing.Point(6, 9);
       lblAdditionalUrls.Name = "lblAdditionalUrls";
       lblAdditionalUrls.Size = new System.Drawing.Size(74, 26);
-      lblAdditionalUrls.TabIndex = 26;
+      lblAdditionalUrls.TabIndex = 0;
       lblAdditionalUrls.Text = "Additional Urls\n(one per line)";
       lblAdditionalUrls.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -659,9 +659,9 @@ namespace WebCrawl.Gui
       this.chkClear.AutoSize = true;
       this.chkClear.Location = new System.Drawing.Point(6, 227);
       this.chkClear.Name = "chkClear";
-      this.chkClear.Size = new System.Drawing.Size(146, 17);
-      this.chkClear.TabIndex = 25;
-      this.chkClear.Text = "Clear Download Directory";
+      this.chkClear.Size = new System.Drawing.Size(209, 17);
+      this.chkClear.TabIndex = 23;
+      this.chkClear.Text = "Clear Download Directory Before Crawl";
       this.chkClear.UseVisualStyleBackColor = true;
       this.chkClear.CheckedChanged += new System.EventHandler(this.OnFormChanged);
       // 
@@ -674,7 +674,7 @@ namespace WebCrawl.Gui
       this.language.Location = new System.Drawing.Point(261, 157);
       this.language.Name = "language";
       this.language.Size = new System.Drawing.Size(153, 21);
-      this.language.TabIndex = 22;
+      this.language.TabIndex = 25;
       this.language.SelectedIndexChanged += new System.EventHandler(this.OnFormChanged);
       // 
       // lblLanguage
@@ -683,7 +683,7 @@ namespace WebCrawl.Gui
       lblLanguage.Location = new System.Drawing.Point(157, 161);
       lblLanguage.Name = "lblLanguage";
       lblLanguage.Size = new System.Drawing.Size(101, 13);
-      lblLanguage.TabIndex = 21;
+      lblLanguage.TabIndex = 24;
       lblLanguage.Text = "Preferred Language";
       lblLanguage.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -694,7 +694,7 @@ namespace WebCrawl.Gui
       this.userAgent.Location = new System.Drawing.Point(89, 132);
       this.userAgent.Name = "userAgent";
       this.userAgent.Size = new System.Drawing.Size(325, 20);
-      this.userAgent.TabIndex = 17;
+      this.userAgent.TabIndex = 19;
       this.userAgent.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.userAgent.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -704,7 +704,7 @@ namespace WebCrawl.Gui
       lblUserAgent.Location = new System.Drawing.Point(3, 136);
       lblUserAgent.Name = "lblUserAgent";
       lblUserAgent.Size = new System.Drawing.Size(60, 13);
-      lblUserAgent.TabIndex = 16;
+      lblUserAgent.TabIndex = 18;
       lblUserAgent.Text = "User Agent";
       lblUserAgent.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -715,7 +715,7 @@ namespace WebCrawl.Gui
       this.referrer.Location = new System.Drawing.Point(89, 107);
       this.referrer.Name = "referrer";
       this.referrer.Size = new System.Drawing.Size(325, 20);
-      this.referrer.TabIndex = 15;
+      this.referrer.TabIndex = 17;
       this.referrer.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.referrer.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -725,7 +725,7 @@ namespace WebCrawl.Gui
       lblReferrer.Location = new System.Drawing.Point(3, 111);
       lblReferrer.Name = "lblReferrer";
       lblReferrer.Size = new System.Drawing.Size(82, 13);
-      lblReferrer.TabIndex = 14;
+      lblReferrer.TabIndex = 16;
       lblReferrer.Text = "Default Referrer";
       lblReferrer.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -735,7 +735,7 @@ namespace WebCrawl.Gui
       this.chkPassiveFtp.Location = new System.Drawing.Point(6, 204);
       this.chkPassiveFtp.Name = "chkPassiveFtp";
       this.chkPassiveFtp.Size = new System.Drawing.Size(86, 17);
-      this.chkPassiveFtp.TabIndex = 20;
+      this.chkPassiveFtp.TabIndex = 22;
       this.chkPassiveFtp.Text = "Passive FTP";
       this.chkPassiveFtp.UseVisualStyleBackColor = true;
       this.chkPassiveFtp.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -746,7 +746,7 @@ namespace WebCrawl.Gui
       this.chkNormalizeHosts.Location = new System.Drawing.Point(6, 181);
       this.chkNormalizeHosts.Name = "chkNormalizeHosts";
       this.chkNormalizeHosts.Size = new System.Drawing.Size(133, 17);
-      this.chkNormalizeHosts.TabIndex = 19;
+      this.chkNormalizeHosts.TabIndex = 21;
       this.chkNormalizeHosts.Text = "Normalize Host Names";
       this.chkNormalizeHosts.UseVisualStyleBackColor = true;
       this.chkNormalizeHosts.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -757,7 +757,7 @@ namespace WebCrawl.Gui
       this.chkNormalizeQueries.Location = new System.Drawing.Point(6, 158);
       this.chkNormalizeQueries.Name = "chkNormalizeQueries";
       this.chkNormalizeQueries.Size = new System.Drawing.Size(138, 17);
-      this.chkNormalizeQueries.TabIndex = 18;
+      this.chkNormalizeQueries.TabIndex = 20;
       this.chkNormalizeQueries.Text = "Normalize Query Strings";
       this.chkNormalizeQueries.UseVisualStyleBackColor = true;
       this.chkNormalizeQueries.CheckedChanged += new System.EventHandler(this.OnFormChanged);
@@ -768,7 +768,7 @@ namespace WebCrawl.Gui
       this.btnRevert2.Location = new System.Drawing.Point(342, 218);
       this.btnRevert2.Name = "btnRevert2";
       this.btnRevert2.Size = new System.Drawing.Size(75, 23);
-      this.btnRevert2.TabIndex = 24;
+      this.btnRevert2.TabIndex = 27;
       this.btnRevert2.Text = "Revert";
       this.btnRevert2.UseVisualStyleBackColor = true;
       this.btnRevert2.Click += new System.EventHandler(this.OnRevertClicked);
@@ -779,7 +779,7 @@ namespace WebCrawl.Gui
       this.btnApply2.Location = new System.Drawing.Point(261, 218);
       this.btnApply2.Name = "btnApply2";
       this.btnApply2.Size = new System.Drawing.Size(75, 23);
-      this.btnApply2.TabIndex = 23;
+      this.btnApply2.TabIndex = 26;
       this.btnApply2.Text = "&Apply";
       this.btnApply2.UseVisualStyleBackColor = true;
       this.btnApply2.Click += new System.EventHandler(this.OnApplyClicked);
@@ -789,7 +789,7 @@ namespace WebCrawl.Gui
       this.transferTimeout.Location = new System.Drawing.Point(338, 81);
       this.transferTimeout.Name = "transferTimeout";
       this.transferTimeout.Size = new System.Drawing.Size(35, 20);
-      this.transferTimeout.TabIndex = 13;
+      this.transferTimeout.TabIndex = 15;
       this.transferTimeout.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.transferTimeout.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -799,7 +799,7 @@ namespace WebCrawl.Gui
       lblTransfer.Location = new System.Drawing.Point(247, 85);
       lblTransfer.Name = "lblTransfer";
       lblTransfer.Size = new System.Drawing.Size(87, 13);
-      lblTransfer.TabIndex = 12;
+      lblTransfer.TabIndex = 14;
       lblTransfer.Text = "Transfer Timeout";
       lblTransfer.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -808,7 +808,7 @@ namespace WebCrawl.Gui
       this.readTimeout.Location = new System.Drawing.Point(204, 81);
       this.readTimeout.Name = "readTimeout";
       this.readTimeout.Size = new System.Drawing.Size(35, 20);
-      this.readTimeout.TabIndex = 11;
+      this.readTimeout.TabIndex = 13;
       this.readTimeout.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.readTimeout.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -818,7 +818,7 @@ namespace WebCrawl.Gui
       lblRead.Location = new System.Drawing.Point(114, 85);
       lblRead.Name = "lblRead";
       lblRead.Size = new System.Drawing.Size(74, 13);
-      lblRead.TabIndex = 10;
+      lblRead.TabIndex = 12;
       lblRead.Text = "Read Timeout";
       lblRead.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -827,7 +827,7 @@ namespace WebCrawl.Gui
       this.idleTimeout.Location = new System.Drawing.Point(73, 81);
       this.idleTimeout.Name = "idleTimeout";
       this.idleTimeout.Size = new System.Drawing.Size(35, 20);
-      this.idleTimeout.TabIndex = 9;
+      this.idleTimeout.TabIndex = 11;
       this.idleTimeout.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.idleTimeout.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -837,7 +837,7 @@ namespace WebCrawl.Gui
       lblIdle.Location = new System.Drawing.Point(3, 85);
       lblIdle.Name = "lblIdle";
       lblIdle.Size = new System.Drawing.Size(65, 13);
-      lblIdle.TabIndex = 8;
+      lblIdle.TabIndex = 10;
       lblIdle.Text = "Idle Timeout";
       lblIdle.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -846,7 +846,7 @@ namespace WebCrawl.Gui
       this.fileSize.Location = new System.Drawing.Point(73, 55);
       this.fileSize.Name = "fileSize";
       this.fileSize.Size = new System.Drawing.Size(35, 20);
-      this.fileSize.TabIndex = 1;
+      this.fileSize.TabIndex = 3;
       this.fileSize.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.fileSize.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -855,7 +855,7 @@ namespace WebCrawl.Gui
       this.retries.Location = new System.Drawing.Point(382, 55);
       this.retries.Name = "retries";
       this.retries.Size = new System.Drawing.Size(32, 20);
-      this.retries.TabIndex = 7;
+      this.retries.TabIndex = 9;
       this.retries.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.retries.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -865,7 +865,7 @@ namespace WebCrawl.Gui
       lblRetries.Location = new System.Drawing.Point(343, 59);
       lblRetries.Name = "lblRetries";
       lblRetries.Size = new System.Drawing.Size(40, 13);
-      lblRetries.TabIndex = 6;
+      lblRetries.TabIndex = 8;
       lblRetries.Text = "Retries";
       lblRetries.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -874,7 +874,7 @@ namespace WebCrawl.Gui
       this.queryStrings.Location = new System.Drawing.Point(204, 55);
       this.queryStrings.Name = "queryStrings";
       this.queryStrings.Size = new System.Drawing.Size(35, 20);
-      this.queryStrings.TabIndex = 3;
+      this.queryStrings.TabIndex = 5;
       this.queryStrings.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.queryStrings.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -884,7 +884,7 @@ namespace WebCrawl.Gui
       lblQueryStrings.Location = new System.Drawing.Point(114, 59);
       lblQueryStrings.Name = "lblQueryStrings";
       lblQueryStrings.Size = new System.Drawing.Size(89, 13);
-      lblQueryStrings.TabIndex = 2;
+      lblQueryStrings.TabIndex = 4;
       lblQueryStrings.Text = "Query String Limit";
       lblQueryStrings.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -894,7 +894,7 @@ namespace WebCrawl.Gui
       lblFileSize.Location = new System.Drawing.Point(3, 59);
       lblFileSize.Name = "lblFileSize";
       lblFileSize.Size = new System.Drawing.Size(69, 13);
-      lblFileSize.TabIndex = 0;
+      lblFileSize.TabIndex = 2;
       lblFileSize.Text = "Max File Size";
       lblFileSize.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -903,7 +903,7 @@ namespace WebCrawl.Gui
       this.maxDepth.Location = new System.Drawing.Point(307, 55);
       this.maxDepth.Name = "maxDepth";
       this.maxDepth.Size = new System.Drawing.Size(32, 20);
-      this.maxDepth.TabIndex = 5;
+      this.maxDepth.TabIndex = 7;
       this.maxDepth.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.maxDepth.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -913,7 +913,7 @@ namespace WebCrawl.Gui
       lblDepth.Location = new System.Drawing.Point(247, 59);
       lblDepth.Name = "lblDepth";
       lblDepth.Size = new System.Drawing.Size(59, 13);
-      lblDepth.TabIndex = 4;
+      lblDepth.TabIndex = 6;
       lblDepth.Text = "Max Depth";
       lblDepth.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -945,7 +945,7 @@ namespace WebCrawl.Gui
       this.btnDeleteFilter.Location = new System.Drawing.Point(69, 204);
       this.btnDeleteFilter.Name = "btnDeleteFilter";
       this.btnDeleteFilter.Size = new System.Drawing.Size(59, 23);
-      this.btnDeleteFilter.TabIndex = 19;
+      this.btnDeleteFilter.TabIndex = 8;
       this.btnDeleteFilter.Text = "&Delete";
       this.btnDeleteFilter.UseVisualStyleBackColor = true;
       this.btnDeleteFilter.Click += new System.EventHandler(this.btnDeleteFilter_Click);
@@ -956,7 +956,7 @@ namespace WebCrawl.Gui
       this.btnAddFilter.Location = new System.Drawing.Point(3, 204);
       this.btnAddFilter.Name = "btnAddFilter";
       this.btnAddFilter.Size = new System.Drawing.Size(59, 23);
-      this.btnAddFilter.TabIndex = 18;
+      this.btnAddFilter.TabIndex = 7;
       this.btnAddFilter.Text = "Add &New";
       this.btnAddFilter.UseVisualStyleBackColor = true;
       this.btnAddFilter.Click += new System.EventHandler(this.btnAddFilter_Click);
@@ -973,7 +973,7 @@ namespace WebCrawl.Gui
       this.filterType.Location = new System.Drawing.Point(77, 177);
       this.filterType.Name = "filterType";
       this.filterType.Size = new System.Drawing.Size(104, 21);
-      this.filterType.TabIndex = 17;
+      this.filterType.TabIndex = 6;
       this.filterType.SelectedIndexChanged += new System.EventHandler(this.filterType_SelectedIndexChanged);
       // 
       // lblType
@@ -983,7 +983,7 @@ namespace WebCrawl.Gui
       lblType.Location = new System.Drawing.Point(3, 181);
       lblType.Name = "lblType";
       lblType.Size = new System.Drawing.Size(31, 13);
-      lblType.TabIndex = 16;
+      lblType.TabIndex = 5;
       lblType.Text = "&Type";
       lblType.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -995,7 +995,7 @@ namespace WebCrawl.Gui
       this.txtReplacement.Location = new System.Drawing.Point(77, 153);
       this.txtReplacement.Name = "txtReplacement";
       this.txtReplacement.Size = new System.Drawing.Size(342, 20);
-      this.txtReplacement.TabIndex = 15;
+      this.txtReplacement.TabIndex = 4;
       this.txtReplacement.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
       // lblReplacement
@@ -1005,7 +1005,7 @@ namespace WebCrawl.Gui
       lblReplacement.Location = new System.Drawing.Point(1, 157);
       lblReplacement.Name = "lblReplacement";
       lblReplacement.Size = new System.Drawing.Size(70, 13);
-      lblReplacement.TabIndex = 14;
+      lblReplacement.TabIndex = 3;
       lblReplacement.Text = "Re&placement";
       lblReplacement.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -1016,7 +1016,7 @@ namespace WebCrawl.Gui
       this.txtRegex.Location = new System.Drawing.Point(77, 129);
       this.txtRegex.Name = "txtRegex";
       this.txtRegex.Size = new System.Drawing.Size(342, 20);
-      this.txtRegex.TabIndex = 13;
+      this.txtRegex.TabIndex = 2;
       this.txtRegex.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
       // lblRegex
@@ -1026,7 +1026,7 @@ namespace WebCrawl.Gui
       lblRegex.Location = new System.Drawing.Point(1, 133);
       lblRegex.Name = "lblRegex";
       lblRegex.Size = new System.Drawing.Size(38, 13);
-      lblRegex.TabIndex = 12;
+      lblRegex.TabIndex = 1;
       lblRegex.Text = "&Regex";
       lblRegex.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
@@ -1046,7 +1046,7 @@ namespace WebCrawl.Gui
       this.filters.Name = "filters";
       this.filters.Size = new System.Drawing.Size(415, 120);
       this.filters.Sorting = System.Windows.Forms.SortOrder.Ascending;
-      this.filters.TabIndex = 11;
+      this.filters.TabIndex = 0;
       this.filters.UseCompatibleStateImageBehavior = false;
       this.filters.View = System.Windows.Forms.View.Details;
       this.filters.SelectedIndexChanged += new System.EventHandler(this.filters_SelectedIndexChanged);
@@ -1265,7 +1265,7 @@ namespace WebCrawl.Gui
       lblCurrentDownloads.Location = new System.Drawing.Point(0, 2);
       lblCurrentDownloads.Name = "lblCurrentDownloads";
       lblCurrentDownloads.Size = new System.Drawing.Size(97, 13);
-      lblCurrentDownloads.TabIndex = 2;
+      lblCurrentDownloads.TabIndex = 0;
       lblCurrentDownloads.Text = "Current Downloads";
       // 
       // downloads
@@ -1285,7 +1285,7 @@ namespace WebCrawl.Gui
       this.downloads.MultiSelect = false;
       this.downloads.Name = "downloads";
       this.downloads.Size = new System.Drawing.Size(423, 101);
-      this.downloads.TabIndex = 3;
+      this.downloads.TabIndex = 1;
       this.downloads.UseCompatibleStateImageBehavior = false;
       this.downloads.View = System.Windows.Forms.View.Details;
       // 
@@ -1372,7 +1372,7 @@ namespace WebCrawl.Gui
       lblErrors.Location = new System.Drawing.Point(0, 0);
       lblErrors.Name = "lblErrors";
       lblErrors.Size = new System.Drawing.Size(72, 13);
-      lblErrors.TabIndex = 11;
+      lblErrors.TabIndex = 2;
       lblErrors.Text = "Recent Errors";
       // 
       // recentErrors
@@ -1391,7 +1391,7 @@ namespace WebCrawl.Gui
       this.recentErrors.MultiSelect = false;
       this.recentErrors.Name = "recentErrors";
       this.recentErrors.Size = new System.Drawing.Size(423, 84);
-      this.recentErrors.TabIndex = 12;
+      this.recentErrors.TabIndex = 3;
       this.recentErrors.UseCompatibleStateImageBehavior = false;
       this.recentErrors.View = System.Windows.Forms.View.Details;
       // 
@@ -1429,7 +1429,7 @@ namespace WebCrawl.Gui
       txtInput.Location = new System.Drawing.Point(4, 223);
       txtInput.Name = "txtInput";
       txtInput.Size = new System.Drawing.Size(413, 20);
-      txtInput.TabIndex = 2;
+      txtInput.TabIndex = 0;
       txtInput.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
       // txtConsole
@@ -1443,7 +1443,7 @@ namespace WebCrawl.Gui
       this.txtConsole.Name = "txtConsole";
       this.txtConsole.ReadOnly = true;
       this.txtConsole.Size = new System.Drawing.Size(413, 214);
-      this.txtConsole.TabIndex = 0;
+      this.txtConsole.TabIndex = 1;
       this.txtConsole.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
       // MainForm
