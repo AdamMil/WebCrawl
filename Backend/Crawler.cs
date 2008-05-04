@@ -1638,7 +1638,7 @@ public sealed class Crawler : IDisposable
             writer.Write("<br/>\n<b>Error:</b> ");
             writer.Write(HttpUtility.HtmlEncode(ex.Message));
             writer.Write("<br/>\n<br/>\nFull error text:<br/>\n");
-            writer.Write(HttpUtility.HtmlEncode(ex.ToString().Replace("\n", "<br/>\n")));
+            writer.Write(HttpUtility.HtmlEncode(ex.ToString()).Replace("\n", "<br/>\n"));
             writer.Write("\n</body>\n</html>\n");
           }
         }
