@@ -191,6 +191,7 @@ public partial class MainForm : Form
     extraUrls       = null;
     positiveFilters = negativeFilters = null;
     changeFilters   = null;
+    saveFileName    = null;
 
     return true;
   }
