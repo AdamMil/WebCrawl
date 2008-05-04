@@ -136,7 +136,7 @@ namespace WebCrawl.Gui
       this.mimeTypes = new System.Windows.Forms.ListView();
       this.btnRevert4 = new System.Windows.Forms.Button();
       this.btnApply4 = new System.Windows.Forms.Button();
-      this.downloads = new System.Windows.Forms.ListView();
+      this.downloads = new ListViewNF();
       this.speed = new System.Windows.Forms.Label();
       this.queued = new System.Windows.Forms.Label();
       this.connections = new System.Windows.Forms.Label();
@@ -1457,7 +1457,7 @@ namespace WebCrawl.Gui
       this.MainMenuStrip = menuStrip;
       this.MinimumSize = new System.Drawing.Size(439, 346);
       this.Name = "MainForm";
-      this.Text = "WebCrawl 0.10 by Adam Milazzo";
+      this.Text = "WebCrawl 0.20 by Adam Milazzo";
       this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
       menuStrip.ResumeLayout(false);
       menuStrip.PerformLayout();

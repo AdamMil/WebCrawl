@@ -41,6 +41,25 @@ public partial class MainForm : Form
   }
   #endregion
 
+  #region ListViewNF
+  /// <summary>A list view with less flicker.</summary>
+  sealed class ListViewNF : System.Windows.Forms.ListView
+  {
+    public ListViewNF()
+    {
+      this.SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+      this.SetStyle(ControlStyles.EnableNotifyMessage, true);
+    }
+
+    protected override void OnNotifyMessage(Message m)
+    {
+      //Filter out the WM_ERASEBKGND message
+      if(m.Msg != 0x14) base.OnNotifyMessage(m);
+    }
+  }
+  #endregion
+
+  #region Filter
   struct Filter
   {
     public Filter(string pattern) : this(pattern, true) { }
@@ -54,7 +73,9 @@ public partial class MainForm : Form
     public string Pattern;
     public Regex  Regex;
   }
+  #endregion
 
+  #region ChangeFilter
   struct ChangeFilter
   {
     public ChangeFilter(string regex, string replacement) 
@@ -66,6 +87,7 @@ public partial class MainForm : Form
     public Filter Filter;
     public string Replacement;
   }
+  #endregion
 
   delegate void InvokeDelegate();
 
@@ -546,6 +568,7 @@ public partial class MainForm : Form
     if(crawler.IsRunning || crawler.IsStopping) speedLabel.Text = speed.Text;
     else if(crawler.IsStopped && !crawler.IsDone) speedLabel.Text = "Paused.";
 
+    this.downloads.SuspendLayout();
     this.downloads.Items.Clear();
     foreach(Download download in downloads)
     {
@@ -558,6 +581,7 @@ public partial class MainForm : Form
         (download.CurrentSpeed / 1024.0).ToString("f1")+" kps",
         bytesStr, download.Resource.Uri.Authority }));
     }
+    this.downloads.ResumeLayout();
   }
 
   void UpdateCrawlerMenu()
@@ -781,7 +805,7 @@ public partial class MainForm : Form
       status.Text = "Crawl started.";
 
       updateTimer = new Timer();
-      updateTimer.Interval = 500;
+      updateTimer.Interval = 750;
       updateTimer.Tick += updateTimer_Tick;
       updateTimer.Start();
 
