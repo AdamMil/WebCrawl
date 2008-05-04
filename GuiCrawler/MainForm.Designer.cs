@@ -387,6 +387,8 @@ namespace WebCrawl.Gui
       // 
       // txtBaseUrls
       // 
+      this.txtBaseUrls.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.txtBaseUrls.Location = new System.Drawing.Point(109, 6);
       this.txtBaseUrls.Multiline = true;
       this.txtBaseUrls.Name = "txtBaseUrls";
@@ -560,6 +562,7 @@ namespace WebCrawl.Gui
       // 
       // browseOutDir
       // 
+      browseOutDir.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
       browseOutDir.Location = new System.Drawing.Point(339, 70);
       browseOutDir.Name = "browseOutDir";
       browseOutDir.Size = new System.Drawing.Size(75, 20);
@@ -570,6 +573,8 @@ namespace WebCrawl.Gui
       // 
       // txtOutDir
       // 
+      this.txtOutDir.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.txtOutDir.Location = new System.Drawing.Point(109, 70);
       this.txtOutDir.Name = "txtOutDir";
       this.txtOutDir.Size = new System.Drawing.Size(224, 20);
@@ -627,6 +632,8 @@ namespace WebCrawl.Gui
       // 
       // additionalUrls
       // 
+      this.additionalUrls.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.additionalUrls.Location = new System.Drawing.Point(86, 6);
       this.additionalUrls.Multiline = true;
       this.additionalUrls.Name = "additionalUrls";
@@ -658,6 +665,8 @@ namespace WebCrawl.Gui
       // 
       // language
       // 
+      this.language.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.language.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.language.FormattingEnabled = true;
       this.language.Location = new System.Drawing.Point(261, 157);
@@ -678,6 +687,8 @@ namespace WebCrawl.Gui
       // 
       // userAgent
       // 
+      this.userAgent.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.userAgent.Location = new System.Drawing.Point(89, 132);
       this.userAgent.Name = "userAgent";
       this.userAgent.Size = new System.Drawing.Size(325, 20);
@@ -697,6 +708,8 @@ namespace WebCrawl.Gui
       // 
       // referrer
       // 
+      this.referrer.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
       this.referrer.Location = new System.Drawing.Point(89, 107);
       this.referrer.Name = "referrer";
       this.referrer.Size = new System.Drawing.Size(325, 20);
