@@ -400,9 +400,10 @@ namespace WebCrawl.Gui
       // lblBaseUrls
       // 
       lblBaseUrls.AutoSize = true;
+      lblBaseUrls.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
       lblBaseUrls.Location = new System.Drawing.Point(3, 6);
       lblBaseUrls.Name = "lblBaseUrls";
-      lblBaseUrls.Size = new System.Drawing.Size(68, 26);
+      lblBaseUrls.Size = new System.Drawing.Size(82, 26);
       lblBaseUrls.TabIndex = 18;
       lblBaseUrls.Text = "Base Urls\n(one per line)";
       lblBaseUrls.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
@@ -585,9 +586,10 @@ namespace WebCrawl.Gui
       // lblOutDir
       // 
       lblOutDir.AutoSize = true;
+      lblOutDir.Font = new System.Drawing.Font("Microsoft Sans Serif", 8.25F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
       lblOutDir.Location = new System.Drawing.Point(3, 74);
       lblOutDir.Name = "lblOutDir";
-      lblOutDir.Size = new System.Drawing.Size(84, 13);
+      lblOutDir.Size = new System.Drawing.Size(100, 13);
       lblOutDir.TabIndex = 0;
       lblOutDir.Text = "Output Directory";
       lblOutDir.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
