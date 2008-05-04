@@ -543,7 +543,8 @@ public partial class MainForm : Form
     queued.Text      = crawler.CurrentLinksQueued.ToString();
     speed.Text       = (crawler.CurrentBytesPerSecond / 1024.0).ToString("f1") + " kps";
 
-    if(crawler.IsRunning) speedLabel.Text = speed.Text;
+    if(crawler.IsRunning || crawler.IsStopping) speedLabel.Text = speed.Text;
+    else if(crawler.IsStopped && !crawler.IsDone) speedLabel.Text = "Paused.";
 
     this.downloads.Items.Clear();
     foreach(Download download in downloads)
@@ -802,7 +803,6 @@ public partial class MainForm : Form
       crawler.Stop();
       pauseCrawlingMenuItem.Text = "Resume Crawling";
       status.Text = "Crawl paused.";
-      speedLabel.Text = "Paused.";
     }
   }
 
