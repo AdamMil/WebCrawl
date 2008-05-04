@@ -469,7 +469,9 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets or sets a value that controls which types of resources should be downloaded, and how they should
   /// be prioritized.
   /// </summary>
-  /// <remarks>The default is <see cref="Backend.Download.Everything"/> | <see cref="Backend.Download.PrioritizeHtml"/>.</remarks>
+  /// <remarks>The default is <see cref="Backend.Download.Everything"/> |
+  /// <see cref="Backend.Download.ExternalResources"/> | <see cref="Backend.Download.PrioritizeHtml"/>.
+  /// </remarks>
   public ResourceType Download
   {
     get { return download; }
@@ -2897,7 +2899,7 @@ public sealed class Crawler : IDisposable
   /// <summary>The allowed domain navigation.</summary>
   DomainNavigation domainNav = DomainNavigation.SameHostName;
   /// <summary>The types of resources the crawler is interested in downloading, and their priorities.</summary>
-  ResourceType download = ResourceType.Everything | ResourceType.PrioritizeHtml;
+  ResourceType download = ResourceType.Everything | ResourceType.ExternalResources | ResourceType.PrioritizeHtml;
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, depthLimit = 50, retries = 1,
       maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
       maxQueryStrings = 500;
