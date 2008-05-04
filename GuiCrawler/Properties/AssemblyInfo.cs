@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
 using System.Runtime.InteropServices;
 
-[assembly: AssemblyTitle("WebCrawl Text Frontend")]
-[assembly: AssemblyDescription("A console-based web crawling application.")]
+[assembly: AssemblyTitle("WebCrawl GUI Frontend")]
+[assembly: AssemblyDescription("A GUI-based web crawling application.")]
 #if DEBUG
 [assembly: AssemblyConfiguration("Debug")]
 #else
