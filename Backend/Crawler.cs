@@ -1267,8 +1267,8 @@ public sealed class Crawler : IDisposable
         if(!thread.Join(timeToWait == Infinite ? Timeout.Infinite : timeToWait))
         {
           thread.Abort();
-          thread.Join(); // we don't want to call Reset() until the thread has terminated because the thread has
-        }                // an event handler for ThreadAbortException that uses the current resource
+          thread.Join(50); // we don't want to call Reset() until the thread has terminated because the thread has
+        }                  // an event handler for ThreadAbortException that uses the current resource
       }
 
       Reset();
@@ -1522,8 +1522,13 @@ public sealed class Crawler : IDisposable
         }
         catch(ThreadAbortException ex) // if the thread is terminated, readd the resource without incrementing its
         {                              // failure count, since it's not its fault that it failed
-          crawler.OnErrorOccurred(resource, ex, false);
-          service.Enqueue(resource, true);
+          Resource currentResource = resource; // we have to grab a local copy of the member variables because during
+          Service currentService = service;    // a thread abortion, they may be cleared by another thread
+          if(currentResource != null && currentService != null)
+          {
+            crawler.OnErrorOccurred(currentResource, ex, false);
+            currentService.Enqueue(currentResource, true);
+          }
         }
         catch(Exception ex)
         {
