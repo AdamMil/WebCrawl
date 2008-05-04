@@ -1105,7 +1105,7 @@ namespace WebCrawl.Gui
       // 
       // btnDeleteMime
       // 
-      this.btnDeleteMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      this.btnDeleteMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
       this.btnDeleteMime.Enabled = false;
       this.btnDeleteMime.Location = new System.Drawing.Point(327, 54);
       this.btnDeleteMime.Name = "btnDeleteMime";
@@ -1117,7 +1117,7 @@ namespace WebCrawl.Gui
       // 
       // btnAddMime
       // 
-      this.btnAddMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Bottom | System.Windows.Forms.AnchorStyles.Left)));
+      this.btnAddMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
       this.btnAddMime.Enabled = false;
       this.btnAddMime.Location = new System.Drawing.Point(261, 54);
       this.btnAddMime.Name = "btnAddMime";
