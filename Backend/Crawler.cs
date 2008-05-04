@@ -479,7 +479,7 @@ public sealed class Crawler : IDisposable
   }
 
   /// <summary>Gets or sets whether web pages that failed to download will be replaced by web pages describing the
-  /// error that occurred during download.
+  /// error that occurred during download. The default is true.
   /// </summary>
   public bool GenerateErrorFiles
   {
@@ -2904,7 +2904,7 @@ public sealed class Crawler : IDisposable
       maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
       maxQueryStrings = 500;
   long maxSize = 50*1024*1024;
-  bool rewriteLinks = true, useCookies = true, errorFiles, passiveFtp = true, caseSensitive=true, disposed,
+  bool rewriteLinks = true, useCookies = true, errorFiles = true, passiveFtp = true, caseSensitive=true, disposed,
        running, baseDirInitialized;
 
   /// <summary>Matches the domain name (not including subdomains) in a host name.</summary>
