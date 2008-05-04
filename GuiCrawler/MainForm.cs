@@ -289,7 +289,7 @@ public partial class MainForm : Form
   {
     // setup page
     List<string> lines = new List<string>();
-    foreach(Uri uri in crawler.GetBaseUris()) lines.Add(uri.ToString());
+    foreach(Uri uri in crawler.GetBaseUris()) lines.Add(uri.AbsoluteUri);
     txtBaseUrls.Lines = lines.ToArray();
     txtOutDir.Text = NoNull(crawler.BaseDirectory);
     dirNav.SelectedItem = crawler.DirectoryNavigation;
@@ -307,7 +307,7 @@ public partial class MainForm : Form
 
     // advanced setup page
     lines.Clear();
-    foreach(Uri uri in extraUrls) lines.Add(uri.ToString());
+    foreach(Uri uri in extraUrls) lines.Add(uri.AbsoluteUri);
     additionalUrls.Lines = lines.ToArray();
 
     fileSize.Text = SizeLimitToString(crawler.MaxFileSize);
@@ -317,7 +317,7 @@ public partial class MainForm : Form
     idleTimeout.Text = TimeLimitToString(crawler.ConnectionIdleTimeout);
     readTimeout.Text = TimeLimitToString(crawler.ReadTimeout);
     transferTimeout.Text = TimeLimitToString(crawler.TransferTimeout);
-    referrer.Text = crawler.DefaultReferrer == null ? string.Empty : crawler.DefaultReferrer.ToString();
+    referrer.Text = crawler.DefaultReferrer == null ? string.Empty : crawler.DefaultReferrer.AbsoluteUri;
     userAgent.Text = NoNull(crawler.UserAgent);
     chkNormalizeQueries.Checked = normalizeQueries;
     chkNormalizeHosts.Checked   = normalizeHosts;
@@ -366,7 +366,7 @@ public partial class MainForm : Form
       writer.Write(ProjectVersion);
       
       writer.Write(extraUrls.Count);
-      foreach(Uri uri in extraUrls) writer.WriteStringWithLength(uri.ToString());
+      foreach(Uri uri in extraUrls) writer.WriteStringWithLength(uri.AbsoluteUri);
 
       writer.Write(positiveFilters.Count);
       foreach(Filter filter in positiveFilters) writer.WriteStringWithLength(filter.Pattern);
@@ -848,6 +848,7 @@ public partial class MainForm : Form
       crawler.Stop();
       OnCrawlStopped();
       status.Text = "Crawl finished.";
+      speedLabel.Text = "Finished.";
     }
   }
 
@@ -859,14 +860,14 @@ public partial class MainForm : Form
       {
         if(recentErrors.Items.Count == 100) recentErrors.Items.RemoveAt(0);
         recentErrors.Items.Add(new ListViewItem(new string[] {
-          resource.Uri.ToString(), extraMessage, resource.Referrer == null ? "" : resource.Referrer.ToString() }));
+          resource.Uri.AbsoluteUri, extraMessage, resource.Referrer == null ? "" : resource.Referrer.AbsoluteUri }));
       });
     }
   }
 
   Uri crawler_FilterUris(Uri uri)
   {
-    string uriString = uri.ToString();
+    string uriString = uri.AbsoluteUri;
 
     if(changeFilters != null)
     {

@@ -312,8 +312,8 @@ public sealed class Resource
     writer.WriteStringWithLength(localPath);
     writer.WriteStringWithLength(responseText);
     writer.WriteStringWithLength(contentType);
-    writer.WriteStringWithLength(uri.ToString());
-    writer.WriteStringWithLength(referrer == null ? null : referrer.ToString());
+    writer.WriteStringWithLength(uri.AbsoluteUri);
+    writer.WriteStringWithLength(referrer == null ? null : referrer.AbsoluteUri);
     writer.Write((int)responseCode);
     writer.Write(depth);
     writer.Write(failures);
@@ -891,7 +891,7 @@ public sealed class Crawler : IDisposable
     writer.Write(SettingsVersion);
 
     writer.WriteStringWithLength(BaseDirectory);
-    writer.WriteStringWithLength(DefaultReferrer == null ? null : DefaultReferrer.ToString());
+    writer.WriteStringWithLength(DefaultReferrer == null ? null : DefaultReferrer.AbsoluteUri);
     writer.WriteStringWithLength(PreferredLanguage);
     writer.WriteStringWithLength(UserAgent);
 
@@ -923,7 +923,7 @@ public sealed class Crawler : IDisposable
     }
 
     writer.Write(baseUris.Count);
-    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.ToString());
+    foreach(Uri uri in baseUris) writer.WriteStringWithLength(uri.AbsoluteUri);
   }
 
   /// <summary>Starts the crawler, so it will begin downloading resources.</summary>
@@ -1634,7 +1634,7 @@ public sealed class Crawler : IDisposable
             writer.Write("<html>\n<head><title>Error occurred</title></head>\n<body>\n");
             writer.Write("<h3>An error occurred while downloading this resources</h3>\n");
             writer.Write("<b>Url:</b> ");
-            writer.Write(HttpUtility.HtmlEncode(resource.Uri.ToString()));
+            writer.Write(HttpUtility.HtmlEncode(resource.Uri.AbsoluteUri));
             writer.Write("<br/>\n<b>Error:</b> ");
             writer.Write(HttpUtility.HtmlEncode(ex.Message));
             writer.Write("<br/>\n<br/>\nFull error text:<br/>\n");
@@ -1741,7 +1741,7 @@ public sealed class Crawler : IDisposable
       if(crawler.UseCookies) service.LoadCookies(httpRequest);
 
       Uri referrer = resource.Referrer != null ? resource.Referrer : crawler.DefaultReferrer;
-      if(referrer != null) httpRequest.Referer = referrer.ToString();
+      if(referrer != null) httpRequest.Referer = referrer.AbsoluteUri;
 
       if(!string.IsNullOrEmpty(crawler.UserAgent))
       {

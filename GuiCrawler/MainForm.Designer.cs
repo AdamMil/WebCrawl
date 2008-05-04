@@ -140,7 +140,7 @@ namespace WebCrawl.Gui
       this.speed = new System.Windows.Forms.Label();
       this.queued = new System.Windows.Forms.Label();
       this.connections = new System.Windows.Forms.Label();
-      this.recentErrors = new System.Windows.Forms.ListView();
+      this.recentErrors = new ListViewNF();
       this.txtConsole = new System.Windows.Forms.TextBox();
       menuStrip = new System.Windows.Forms.MenuStrip();
       fileMenu = new System.Windows.Forms.ToolStripMenuItem();
@@ -1539,8 +1539,8 @@ namespace WebCrawl.Gui
     private System.Windows.Forms.TextBox txtConsole;
     private System.Windows.Forms.CheckBox chkClear;
     private System.Windows.Forms.ToolStripMenuItem abortCrawlingMenuItem;
-    private System.Windows.Forms.ListView downloads;
-    private System.Windows.Forms.ListView recentErrors;
+    private ListViewNF downloads;
+    private ListViewNF recentErrors;
     private System.Windows.Forms.Label speed;
     private System.Windows.Forms.Label queued;
     private System.Windows.Forms.Label connections;
