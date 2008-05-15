@@ -13,7 +13,7 @@ namespace WebCrawl.Gui
 
 public partial class MainForm : Form
 {
-  const int ProjectVersion = 1;
+  const int ProjectVersion = 2;
 
   public MainForm()
   {
@@ -152,12 +152,14 @@ public partial class MainForm : Form
     normalizeHosts = chkNormalizeHosts.Checked;
     crawler.PassiveFtp = chkPassiveFtp.Checked;
     clearDownloadDir = chkClear.Checked;
+    enqueueBaseUrls = chkEnqueueBaseUrls.Checked;
     crawler.PreferredLanguage = GetLanguage();
 
-    // url filters
+    // filters
     positiveFilters.Clear();
     negativeFilters.Clear();
     changeFilters.Clear();
+    contentFilters.Clear();
     foreach(ListViewItem item in filters.Items)
     {
       switch(item.SubItems[1].Text)
@@ -171,6 +173,9 @@ public partial class MainForm : Form
         case "Must Not Match":
           negativeFilters.Add(new Filter(item.SubItems[0].Text));
           break;
+        case "Content":
+          contentFilters.Add(new ChangeFilter(item.SubItems[0].Text, item.SubItems[2].Text));
+          break;
       }
     }
 
@@ -178,7 +183,7 @@ public partial class MainForm : Form
     crawler.ClearMimeOverrides();
     foreach(ListViewItem item in mimeTypes.Items)
     {
-      crawler.AddMimeOverride(item.SubItems[0].Text, item.SubItems[1].Text);
+      crawler.AddMimeOverride(item.SubItems[0].Text, item.SubItems[1].Text, item.SubItems[2].Text == "Yes");
     }
 
     projectChanged = true;
@@ -212,7 +217,7 @@ public partial class MainForm : Form
     crawler         = null;
     extraUrls       = null;
     positiveFilters = negativeFilters = null;
-    changeFilters   = null;
+    changeFilters   = contentFilters  = null;
     saveFileName    = null;
 
     return true;
@@ -227,9 +232,12 @@ public partial class MainForm : Form
     positiveFilters  = new List<Filter>();
     negativeFilters  = new List<Filter>();
     changeFilters    = new List<ChangeFilter>();
+    contentFilters   = new List<ChangeFilter>();
     clearDownloadDir = normalizeHosts = normalizeQueries = false;
+    enqueueBaseUrls  = true;
 
     crawler.AddStandardMimeOverrides();
+    crawler.FilterContent += crawler_FilterContent;
     crawler.FilterUris += crawler_FilterUris;
     crawler.Progress   += crawler_Progress;
 
@@ -247,7 +255,7 @@ public partial class MainForm : Form
       using(BinaryReader reader = new BinaryReader(stream))
       {
         int version = reader.ReadInt32();
-        if(version != ProjectVersion)
+        if(version > ProjectVersion)
         {
           MessageBox.Show("This is either not a WebCrawl project, or it was created by a different version of the "+
                           "program", "File version mismatch", MessageBoxButtons.OK, MessageBoxIcon.Stop);
@@ -269,9 +277,23 @@ public partial class MainForm : Form
           changeFilters.Add(new ChangeFilter(reader.ReadStringWithLength(), reader.ReadStringWithLength()));
         }
 
+        if(version >= 2)
+        {
+          count = reader.ReadInt32();
+          while(count-- > 0)
+          {
+            contentFilters.Add(new ChangeFilter(reader.ReadStringWithLength(), reader.ReadStringWithLength()));
+          }
+        }
+
         clearDownloadDir = reader.ReadBool();
         normalizeQueries = reader.ReadBool();
         normalizeHosts   = reader.ReadBool();
+
+        if(version >= 2)
+        {
+          enqueueBaseUrls = reader.ReadBool();
+        }
 
         crawler.LoadSettings(reader);
         RevertChanges();
@@ -282,6 +304,9 @@ public partial class MainForm : Form
     catch
     {
       NewProject();
+      status.Text = "An error occured while loading project.";
+      MessageBox.Show("An error occurred while loading the project file.", "Error loading project",
+                      MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
   }
 
@@ -323,22 +348,15 @@ public partial class MainForm : Form
     chkNormalizeHosts.Checked   = normalizeHosts;
     chkPassiveFtp.Checked = crawler.PassiveFtp;
     chkClear.Checked = clearDownloadDir;
+    chkEnqueueBaseUrls.Checked = enqueueBaseUrls;
     language.SelectedIndex = FindLanguage(crawler.PreferredLanguage);
 
-    // url filters
+    // filters
     filters.Items.Clear();
-    foreach(Filter filter in positiveFilters)
-    {
-      filters.Items.Add(MakeListItem(filter, "Must Match"));
-    }
-    foreach(Filter filter in negativeFilters)
-    {
-      filters.Items.Add(MakeListItem(filter, "Must Not Match"));
-    }
-    foreach(ChangeFilter filter in changeFilters)
-    {
-      filters.Items.Add(MakeListItem(filter));
-    }
+    foreach(Filter filter in positiveFilters) filters.Items.Add(MakeListItem(filter, "Must Match"));
+    foreach(Filter filter in negativeFilters) filters.Items.Add(MakeListItem(filter, "Must Not Match"));
+    foreach(ChangeFilter filter in changeFilters) filters.Items.Add(MakeListItem(filter, "Change"));
+    foreach(ChangeFilter filter in contentFilters) filters.Items.Add(MakeListItem(filter, "Content"));
 
     // mime types
     mimeTypes.Items.Clear();
@@ -381,9 +399,17 @@ public partial class MainForm : Form
         writer.WriteStringWithLength(filter.Replacement);
       }
 
-      writer.Write(chkClear.Checked);
-      writer.Write(chkNormalizeQueries.Checked);
-      writer.Write(chkNormalizeHosts.Checked);
+      writer.Write(contentFilters.Count);
+      foreach(ChangeFilter filter in contentFilters)
+      {
+        writer.WriteStringWithLength(filter.Filter.Pattern);
+        writer.WriteStringWithLength(filter.Replacement);
+      }
+
+      writer.Write(clearDownloadDir);
+      writer.Write(normalizeQueries);
+      writer.Write(normalizeHosts);
+      writer.Write(enqueueBaseUrls);
 
       crawler.SaveSettings(writer);
     }
@@ -572,7 +598,7 @@ public partial class MainForm : Form
     this.downloads.Items.Clear();
     foreach(Download download in downloads)
     {
-      long bytes = download.Resource.Downloaded;
+      long bytes = download.Resource.BytesDownloaded;
       string bytesStr = bytes >= 1024*1024 ?
         (bytes / (double)(1024*1024)).ToString("f2")+" mb" : (bytes / 1024.0).ToString("f2")+" kb";
 
@@ -647,14 +673,16 @@ public partial class MainForm : Form
   {
     if(mimeTypes.SelectedIndices.Count != 0)
     {
-      ListViewItem item = mimeTypes.Items[mimeTypes.SelectedIndices[0]];
-      txtExtension.Text = item.SubItems[0].Text;
-      txtMimeType.Text  = item.SubItems[1].Text;
+      ListViewItem item     = mimeTypes.Items[mimeTypes.SelectedIndices[0]];
+      txtExtension.Text     = item.SubItems[0].Text;
+      txtMimeType.Text      = item.SubItems[1].Text;
+      chkPreferred.Checked  = item.SubItems[2].Text == "Yes";
       btnDeleteMime.Enabled = true;
     }
     else
     {
       txtExtension.Text = txtMimeType.Text = string.Empty;
+      chkPreferred.Checked  = false;
       btnDeleteMime.Enabled = false;
     }
   }
@@ -666,7 +694,7 @@ public partial class MainForm : Form
       ListViewItem item = filters.Items[filters.SelectedIndices[0]];
       txtRegex.Text = item.SubItems[0].Text;
       filterType.SelectedItem = item.SubItems[1].Text;
-      if(filterType.SelectedIndex == 2) txtReplacement.Text = item.SubItems[2].Text;
+      if(filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3) txtReplacement.Text = item.SubItems[2].Text;
 
       btnDeleteFilter.Enabled = true;
     }
@@ -685,20 +713,40 @@ public partial class MainForm : Form
   void btnAddMime_Click(object sender, EventArgs e)
   {
     string extension = txtExtension.Text.Trim(), mimeType = txtMimeType.Text.Trim();
-    foreach(ListViewItem item in mimeTypes.Items)
+
+    int index;
+    for(index=0; index<mimeTypes.Items.Count; index++)
     {
+      ListViewItem item = mimeTypes.Items[index];
       if(string.Equals(extension, item.SubItems[0].Text, StringComparison.OrdinalIgnoreCase))
       {
-        if(!string.Equals(mimeType, item.SubItems[1].Text, StringComparison.OrdinalIgnoreCase))
-        {
-          item.SubItems[1].Text = mimeType;
-          OnFormChanged(sender, e);
-        }
-        return;
+        item.SubItems[1].Text = mimeType;
+        item.SubItems[2].Text = chkPreferred.Checked ? "Yes" : "No";
+        break;
       }
     }
 
-    mimeTypes.Items.Add(MakeListItem(new MimeOverride(extension, txtMimeType.Text.Trim())));
+    if(index == mimeTypes.Items.Count)
+    {
+      index = mimeTypes.Items.Add(MakeListItem(new MimeOverride(extension, txtMimeType.Text.Trim(),
+                                                                chkPreferred.Checked))).Index;
+    }
+
+    if(chkPreferred.Checked) // if this is the preferred extension, make sure no other extensions are also preferred
+    {
+      for(int i=0; i<mimeTypes.Items.Count; i++)
+      {
+        if(i != index)
+        {
+          ListViewItem item = mimeTypes.Items[i];
+          if(string.Equals(mimeType, item.SubItems[1].Text, StringComparison.OrdinalIgnoreCase))
+          {
+            item.SubItems[2].Text = "No";
+          }
+        }
+      }
+    }
+
     OnFormChanged(sender, e);
   }
 
@@ -713,8 +761,8 @@ public partial class MainForm : Form
       return;
     }
 
-    filters.Items.Add(filterType.SelectedIndex == 2
-      ? MakeListItem(new ChangeFilter(pattern, txtReplacement.Text)) :
+    filters.Items.Add(filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3
+      ? MakeListItem(new ChangeFilter(pattern, txtReplacement.Text), (string)filterType.SelectedItem) :
         MakeListItem(new Filter(pattern), (string)filterType.SelectedItem));
     OnFormChanged(sender, e);
   }
@@ -739,7 +787,7 @@ public partial class MainForm : Form
 
   void filterType_SelectedIndexChanged(object sender, EventArgs e)
   {
-    txtReplacement.Enabled = filterType.SelectedIndex == 2;
+    txtReplacement.Enabled = filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3;
   }
 
   void listView_ColumnClick(object sender, ColumnClickEventArgs e)
@@ -797,8 +845,11 @@ public partial class MainForm : Form
 
       recentErrors.Items.Clear();
 
-      crawler.ClearUris();
-      foreach(Uri baseUri in crawler.GetBaseUris()) crawler.EnqueueUri(baseUri, true);
+      crawler.ClearUris(true);
+      if(enqueueBaseUrls)
+      {
+        foreach(Uri baseUri in crawler.GetBaseUris()) crawler.EnqueueUri(baseUri, true);
+      }
       foreach(Uri uri in extraUrls) crawler.EnqueueUri(uri, true);
 
       crawler.Start();
@@ -860,8 +911,41 @@ public partial class MainForm : Form
       {
         if(recentErrors.Items.Count == 100) recentErrors.Items.RemoveAt(0);
         recentErrors.Items.Add(new ListViewItem(new string[] {
-          resource.Uri.AbsoluteUri, extraMessage, resource.Referrer == null ? "" : resource.Referrer.AbsoluteUri }));
+          resource.Uri.AbsoluteUri, extraMessage, resource.Referrer == null ? "" : resource.Referrer.AbsoluteUri,
+          resource.Status == Status.FatalErrorOccurred ? "Yes" : "No"
+        }));
       });
+    }
+  }
+
+  void crawler_FilterContent(Uri url, string mimeType, ResourceType resourceType, System.Text.Encoding encoding,
+                             string contentFileName)
+  {
+    if(resourceType == ResourceType.Html && contentFilters.Count != 0)
+    {
+      string content;
+      using(StreamReader reader =
+              encoding == null ? new StreamReader(contentFileName) : new StreamReader(contentFileName, encoding))
+      {
+        encoding = reader.CurrentEncoding;
+        content  = reader.ReadToEnd();
+      }
+
+      string newContent = content;
+      foreach(ChangeFilter filter in contentFilters)
+      {
+        newContent = filter.Filter.Regex.Replace(newContent,
+                                              delegate(Match m) { return ReplaceVars(filter.Replacement, m); });
+      }
+
+      if(!string.Equals(content, newContent, StringComparison.Ordinal))
+      {
+        using(StreamWriter writer =
+                new StreamWriter(contentFileName, false, encoding == null ? System.Text.Encoding.UTF8 : encoding))
+        {
+          writer.Write(newContent);
+        }
+      }
     }
   }
 
@@ -872,14 +956,12 @@ public partial class MainForm : Form
     if(changeFilters != null)
     {
       bool uriChanged = false;
-      for(int i=0; i<changeFilters.Count; i++)
+      foreach(ChangeFilter filter in changeFilters)
       {
-        Match uriMatch = changeFilters[i].Filter.Regex.Match(uriString);
+        Match uriMatch = filter.Filter.Regex.Match(uriString);
         if(uriMatch.Success)
         {
-          uriString = varRe.Replace(changeFilters[i].Replacement,
-                                    delegate(Match m)
-                                    { return uriMatch.Groups[int.Parse(m.Groups["group"].Value)].Value; });
+          uriString  = ReplaceVars(filter.Replacement, uriMatch);
           uriChanged = true;
         }
       }
@@ -888,17 +970,17 @@ public partial class MainForm : Form
 
     if(positiveFilters != null)
     {
-      for(int i=0; i<positiveFilters.Count; i++)
+      foreach(Filter filter in positiveFilters)
       {
-        if(!positiveFilters[i].Regex.IsMatch(uriString)) return null;
+        if(!filter.Regex.IsMatch(uriString)) return null;
       }
     }
 
     if(negativeFilters != null)
     {
-      for(int i=0; i<negativeFilters.Count; i++)
+      foreach(Filter filter in negativeFilters)
       {
-        if(negativeFilters[i].Regex.IsMatch(uriString)) return null;
+        if(filter.Regex.IsMatch(uriString)) return null;
       }
     }
 
@@ -962,14 +1044,14 @@ public partial class MainForm : Form
     return new ListViewItem(new string[] { filter.Pattern, type });
   }
 
-  static ListViewItem MakeListItem(ChangeFilter filter)
+  static ListViewItem MakeListItem(ChangeFilter filter, string type)
   {
-    return new ListViewItem(new string[] { filter.Filter.Pattern, "Change", filter.Replacement });
+    return new ListViewItem(new string[] { filter.Filter.Pattern, type, filter.Replacement });
   }
 
   static ListViewItem MakeListItem(MimeOverride mime)
   {
-    return new ListViewItem(new string[] { mime.Extension, mime.MimeType });
+    return new ListViewItem(new string[] { mime.Extension, mime.MimeType, mime.IsPreferred ? "Yes" : "No" });
   }
 
   static string NoNull(string str)
@@ -1029,6 +1111,12 @@ public partial class MainForm : Form
     }
   }
 
+  static string ReplaceVars(string replacement, Match match)
+  {
+    return varRe.Replace(replacement,
+      delegate(Match var) { return match.Groups[int.Parse(var.Groups["group"].Value)].Value; });
+  }
+
   static string SizeLimitToString(long limit)
   {
     if(limit == Crawler.Infinite) return string.Empty;
@@ -1069,10 +1157,10 @@ public partial class MainForm : Form
   Crawler crawler;
   List<Uri> extraUrls;
   List<Filter> positiveFilters, negativeFilters;
-  List<ChangeFilter> changeFilters;
+  List<ChangeFilter> changeFilters, contentFilters;
   string saveFileName;
   Timer updateTimer;
-  bool fieldChanged, projectChanged, clearDownloadDir, normalizeQueries, normalizeHosts;
+  bool fieldChanged, projectChanged, clearDownloadDir, normalizeQueries, normalizeHosts, enqueueBaseUrls;
 
   static readonly Regex timeRe = new Regex(@"^\s*(\d+)\s*([smh])?\s*$", RegexOptions.Singleline | RegexOptions.IgnoreCase);
   static readonly Regex sizeRe = new Regex(@"^\s*(\d+)\s*([kmg]b)?\s*$", RegexOptions.Singleline | RegexOptions.IgnoreCase);
