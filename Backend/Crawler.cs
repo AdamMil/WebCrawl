@@ -319,7 +319,7 @@ sealed class ResourceComparer : IComparer<Resource>
 
   public int Compare(Resource a, Resource b)
   {
-    return string.CompareOrdinal(a.Uri.AbsoluteUri, b.Uri.AbsoluteUri);
+    return string.CompareOrdinal(a.Uri.GetLeftPart(UriPartial.Query), b.Uri.GetLeftPart(UriPartial.Query));
   }
 
   public static readonly ResourceComparer Instance = new ResourceComparer();
@@ -1869,14 +1869,16 @@ public sealed class Crawler : IDisposable
               {
                 if(resource.LocalPath != null) // if the resource has already been saved,
                 {                              // we can reference the file immediately
-                  newUri = crawler.GetRelativeUri(localDir, resource.LocalPath, resource.Uri, type);
+                  // we pass absUri rather than resource.Uri because the Uri fragment of the resource returned from
+                  // EnqueueUri may be different than the fragment in absUri
+                  newUri = crawler.GetRelativeUri(localDir, resource.LocalPath, absUri, type);
                 }
                 else if(!resource.rewritten) // otherwise, if the resource hasn't been rewritten yet, add this file 
                 {                            // as a reference and use the rewrite tag to create a placeholder url
                   if(resource.rewriteTag == 0) resource.rewriteTag = crawler.GetNextRewriteTag();
                   int index = resourcesToReference.BinarySearch(resource, ResourceComparer.Instance);
                   if(index < 0) resourcesToReference.Insert(~index, resource);
-                  newUri = resource.PlaceholderUrl;
+                  newUri = resource.PlaceholderUrl + absUri.Fragment;
                 }
                 // if the resource has been rewritten, but hasn't been saved, then we didn't want the file, so we
                 // should just link back to the original source
@@ -1898,7 +1900,8 @@ public sealed class Crawler : IDisposable
       {
         if(resource.references != null)
         {
-          string placeHolder = resource.PlaceholderUrl, origUrl = resource.Uri.AbsoluteUri;
+          // omit the fragment from the URL, because it's already been added to the file
+          string placeHolder = resource.PlaceholderUrl, origUrl = resource.Uri.GetLeftPart(UriPartial.Query);
           foreach(Resource reference in resource.references)
           {
             lock(reference) RewriteUrlInFile(reference.LocalPath, reference.encoding, placeHolder, origUrl);
