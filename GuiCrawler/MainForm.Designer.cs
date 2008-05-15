@@ -69,6 +69,7 @@ namespace WebCrawl.Gui
       System.Windows.Forms.Label lblExtension;
       System.Windows.Forms.ColumnHeader extensionColumn;
       System.Windows.Forms.ColumnHeader mimeColumn;
+      System.Windows.Forms.ColumnHeader preferredColumn;
       System.Windows.Forms.TabPage progressTab;
       System.Windows.Forms.SplitContainer progressSplitter;
       System.Windows.Forms.Label lblCurrentDownloads;
@@ -85,6 +86,7 @@ namespace WebCrawl.Gui
       System.Windows.Forms.ColumnHeader referrerColumn;
       System.Windows.Forms.TabPage consoleTab;
       System.Windows.Forms.TextBox txtInput;
+      System.Windows.Forms.ColumnHeader fatalColumn;
       this.exitMenuItem = new System.Windows.Forms.ToolStripMenuItem();
       this.crawlerMenu = new System.Windows.Forms.ToolStripMenuItem();
       this.startCrawlingMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -104,6 +106,7 @@ namespace WebCrawl.Gui
       this.btnRevert = new System.Windows.Forms.Button();
       this.btnApply = new System.Windows.Forms.Button();
       this.txtOutDir = new System.Windows.Forms.TextBox();
+      this.chkEnqueueBaseUrls = new System.Windows.Forms.CheckBox();
       this.additionalUrls = new System.Windows.Forms.TextBox();
       this.chkClear = new System.Windows.Forms.CheckBox();
       this.language = new System.Windows.Forms.ComboBox();
@@ -129,6 +132,7 @@ namespace WebCrawl.Gui
       this.filters = new System.Windows.Forms.ListView();
       this.btnRevert3 = new System.Windows.Forms.Button();
       this.btnApply3 = new System.Windows.Forms.Button();
+      this.chkPreferred = new System.Windows.Forms.CheckBox();
       this.btnDeleteMime = new System.Windows.Forms.Button();
       this.btnAddMime = new System.Windows.Forms.Button();
       this.txtMimeType = new System.Windows.Forms.TextBox();
@@ -136,11 +140,11 @@ namespace WebCrawl.Gui
       this.mimeTypes = new System.Windows.Forms.ListView();
       this.btnRevert4 = new System.Windows.Forms.Button();
       this.btnApply4 = new System.Windows.Forms.Button();
-      this.downloads = new ListViewNF();
+      this.downloads = new WebCrawl.Gui.MainForm.ListViewNF();
       this.speed = new System.Windows.Forms.Label();
       this.queued = new System.Windows.Forms.Label();
       this.connections = new System.Windows.Forms.Label();
-      this.recentErrors = new ListViewNF();
+      this.recentErrors = new WebCrawl.Gui.MainForm.ListViewNF();
       this.txtConsole = new System.Windows.Forms.TextBox();
       menuStrip = new System.Windows.Forms.MenuStrip();
       fileMenu = new System.Windows.Forms.ToolStripMenuItem();
@@ -183,6 +187,7 @@ namespace WebCrawl.Gui
       lblExtension = new System.Windows.Forms.Label();
       extensionColumn = new System.Windows.Forms.ColumnHeader();
       mimeColumn = new System.Windows.Forms.ColumnHeader();
+      preferredColumn = new System.Windows.Forms.ColumnHeader();
       progressTab = new System.Windows.Forms.TabPage();
       progressSplitter = new System.Windows.Forms.SplitContainer();
       lblCurrentDownloads = new System.Windows.Forms.Label();
@@ -199,6 +204,7 @@ namespace WebCrawl.Gui
       referrerColumn = new System.Windows.Forms.ColumnHeader();
       consoleTab = new System.Windows.Forms.TabPage();
       txtInput = new System.Windows.Forms.TextBox();
+      fatalColumn = new System.Windows.Forms.ColumnHeader();
       menuStrip.SuspendLayout();
       statusStrip.SuspendLayout();
       tabControl.SuspendLayout();
@@ -596,6 +602,7 @@ namespace WebCrawl.Gui
       // 
       // advancedTab
       // 
+      advancedTab.Controls.Add(this.chkEnqueueBaseUrls);
       advancedTab.Controls.Add(this.additionalUrls);
       advancedTab.Controls.Add(lblAdditionalUrls);
       advancedTab.Controls.Add(this.chkClear);
@@ -631,6 +638,17 @@ namespace WebCrawl.Gui
       advancedTab.TabIndex = 3;
       advancedTab.Text = "Advanced Setup";
       advancedTab.UseVisualStyleBackColor = true;
+      // 
+      // chkEnqueueBaseUrls
+      // 
+      this.chkEnqueueBaseUrls.AutoSize = true;
+      this.chkEnqueueBaseUrls.Location = new System.Drawing.Point(157, 158);
+      this.chkEnqueueBaseUrls.Name = "chkEnqueueBaseUrls";
+      this.chkEnqueueBaseUrls.Size = new System.Drawing.Size(117, 17);
+      this.chkEnqueueBaseUrls.TabIndex = 24;
+      this.chkEnqueueBaseUrls.Text = "Enqueue Base Urls";
+      this.chkEnqueueBaseUrls.UseVisualStyleBackColor = true;
+      this.chkEnqueueBaseUrls.CheckedChanged += new System.EventHandler(this.OnFormChanged);
       // 
       // additionalUrls
       // 
@@ -671,19 +689,19 @@ namespace WebCrawl.Gui
             | System.Windows.Forms.AnchorStyles.Right)));
       this.language.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
       this.language.FormattingEnabled = true;
-      this.language.Location = new System.Drawing.Point(261, 157);
+      this.language.Location = new System.Drawing.Point(261, 179);
       this.language.Name = "language";
       this.language.Size = new System.Drawing.Size(153, 21);
-      this.language.TabIndex = 25;
+      this.language.TabIndex = 26;
       this.language.SelectedIndexChanged += new System.EventHandler(this.OnFormChanged);
       // 
       // lblLanguage
       // 
       lblLanguage.AutoSize = true;
-      lblLanguage.Location = new System.Drawing.Point(157, 161);
+      lblLanguage.Location = new System.Drawing.Point(157, 183);
       lblLanguage.Name = "lblLanguage";
       lblLanguage.Size = new System.Drawing.Size(101, 13);
-      lblLanguage.TabIndex = 24;
+      lblLanguage.TabIndex = 25;
       lblLanguage.Text = "Preferred Language";
       lblLanguage.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
       // 
@@ -768,7 +786,7 @@ namespace WebCrawl.Gui
       this.btnRevert2.Location = new System.Drawing.Point(342, 218);
       this.btnRevert2.Name = "btnRevert2";
       this.btnRevert2.Size = new System.Drawing.Size(75, 23);
-      this.btnRevert2.TabIndex = 27;
+      this.btnRevert2.TabIndex = 28;
       this.btnRevert2.Text = "Revert";
       this.btnRevert2.UseVisualStyleBackColor = true;
       this.btnRevert2.Click += new System.EventHandler(this.OnRevertClicked);
@@ -779,7 +797,7 @@ namespace WebCrawl.Gui
       this.btnApply2.Location = new System.Drawing.Point(261, 218);
       this.btnApply2.Name = "btnApply2";
       this.btnApply2.Size = new System.Drawing.Size(75, 23);
-      this.btnApply2.TabIndex = 26;
+      this.btnApply2.TabIndex = 27;
       this.btnApply2.Text = "&Apply";
       this.btnApply2.UseVisualStyleBackColor = true;
       this.btnApply2.Click += new System.EventHandler(this.OnApplyClicked);
@@ -935,7 +953,7 @@ namespace WebCrawl.Gui
       filterTab.Padding = new System.Windows.Forms.Padding(3);
       filterTab.Size = new System.Drawing.Size(423, 247);
       filterTab.TabIndex = 4;
-      filterTab.Text = "Url Filters";
+      filterTab.Text = "Filters";
       filterTab.UseVisualStyleBackColor = true;
       // 
       // btnDeleteFilter
@@ -969,7 +987,8 @@ namespace WebCrawl.Gui
       this.filterType.Items.AddRange(new object[] {
             "Must Match",
             "Must Not Match",
-            "Change"});
+            "Change",
+            "Content"});
       this.filterType.Location = new System.Drawing.Point(77, 177);
       this.filterType.Name = "filterType";
       this.filterType.Size = new System.Drawing.Size(104, 21);
@@ -1086,6 +1105,7 @@ namespace WebCrawl.Gui
       // 
       // mimeTypesTab
       // 
+      mimeTypesTab.Controls.Add(this.chkPreferred);
       mimeTypesTab.Controls.Add(this.btnDeleteMime);
       mimeTypesTab.Controls.Add(this.btnAddMime);
       mimeTypesTab.Controls.Add(this.txtMimeType);
@@ -1103,14 +1123,25 @@ namespace WebCrawl.Gui
       mimeTypesTab.Text = "MIME Types";
       mimeTypesTab.UseVisualStyleBackColor = true;
       // 
+      // chkPreferred
+      // 
+      this.chkPreferred.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+      this.chkPreferred.AutoSize = true;
+      this.chkPreferred.Location = new System.Drawing.Point(263, 54);
+      this.chkPreferred.Name = "chkPreferred";
+      this.chkPreferred.Size = new System.Drawing.Size(129, 17);
+      this.chkPreferred.TabIndex = 5;
+      this.chkPreferred.Text = "Is Preferred Extension";
+      this.chkPreferred.UseVisualStyleBackColor = true;
+      // 
       // btnDeleteMime
       // 
       this.btnDeleteMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
       this.btnDeleteMime.Enabled = false;
-      this.btnDeleteMime.Location = new System.Drawing.Point(327, 54);
+      this.btnDeleteMime.Location = new System.Drawing.Point(327, 75);
       this.btnDeleteMime.Name = "btnDeleteMime";
       this.btnDeleteMime.Size = new System.Drawing.Size(59, 23);
-      this.btnDeleteMime.TabIndex = 6;
+      this.btnDeleteMime.TabIndex = 7;
       this.btnDeleteMime.Text = "&Delete";
       this.btnDeleteMime.UseVisualStyleBackColor = true;
       this.btnDeleteMime.Click += new System.EventHandler(this.btnDeleteMime_Click);
@@ -1119,10 +1150,10 @@ namespace WebCrawl.Gui
       // 
       this.btnAddMime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
       this.btnAddMime.Enabled = false;
-      this.btnAddMime.Location = new System.Drawing.Point(261, 54);
+      this.btnAddMime.Location = new System.Drawing.Point(261, 75);
       this.btnAddMime.Name = "btnAddMime";
       this.btnAddMime.Size = new System.Drawing.Size(59, 23);
-      this.btnAddMime.TabIndex = 5;
+      this.btnAddMime.TabIndex = 6;
       this.btnAddMime.Text = "Add &New";
       this.btnAddMime.UseVisualStyleBackColor = true;
       this.btnAddMime.Click += new System.EventHandler(this.btnAddMime_Click);
@@ -1176,7 +1207,8 @@ namespace WebCrawl.Gui
             | System.Windows.Forms.AnchorStyles.Right)));
       this.mimeTypes.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
             extensionColumn,
-            mimeColumn});
+            mimeColumn,
+            preferredColumn});
       this.mimeTypes.FullRowSelect = true;
       this.mimeTypes.HideSelection = false;
       this.mimeTypes.Location = new System.Drawing.Point(4, 4);
@@ -1197,7 +1229,12 @@ namespace WebCrawl.Gui
       // mimeColumn
       // 
       mimeColumn.Text = "MIME Type";
-      mimeColumn.Width = 170;
+      mimeColumn.Width = 115;
+      // 
+      // preferredColumn
+      // 
+      preferredColumn.Text = "Preferred";
+      preferredColumn.Width = 55;
       // 
       // btnRevert4
       // 
@@ -1205,7 +1242,7 @@ namespace WebCrawl.Gui
       this.btnRevert4.Location = new System.Drawing.Point(342, 218);
       this.btnRevert4.Name = "btnRevert4";
       this.btnRevert4.Size = new System.Drawing.Size(75, 23);
-      this.btnRevert4.TabIndex = 8;
+      this.btnRevert4.TabIndex = 9;
       this.btnRevert4.Text = "Revert";
       this.btnRevert4.UseVisualStyleBackColor = true;
       this.btnRevert4.Click += new System.EventHandler(this.OnRevertClicked);
@@ -1216,7 +1253,7 @@ namespace WebCrawl.Gui
       this.btnApply4.Location = new System.Drawing.Point(261, 218);
       this.btnApply4.Name = "btnApply4";
       this.btnApply4.Size = new System.Drawing.Size(75, 23);
-      this.btnApply4.TabIndex = 7;
+      this.btnApply4.TabIndex = 8;
       this.btnApply4.Text = "&Apply";
       this.btnApply4.UseVisualStyleBackColor = true;
       this.btnApply4.Click += new System.EventHandler(this.OnApplyClicked);
@@ -1384,7 +1421,8 @@ namespace WebCrawl.Gui
       this.recentErrors.Columns.AddRange(new System.Windows.Forms.ColumnHeader[] {
             urlColumn2,
             messageColumn,
-            referrerColumn});
+            referrerColumn,
+            fatalColumn});
       this.recentErrors.FullRowSelect = true;
       this.recentErrors.HeaderStyle = System.Windows.Forms.ColumnHeaderStyle.Nonclickable;
       this.recentErrors.Location = new System.Drawing.Point(0, 16);
@@ -1403,7 +1441,7 @@ namespace WebCrawl.Gui
       // messageColumn
       // 
       messageColumn.Text = "Message";
-      messageColumn.Width = 195;
+      messageColumn.Width = 165;
       // 
       // referrerColumn
       // 
@@ -1445,6 +1483,11 @@ namespace WebCrawl.Gui
       this.txtConsole.Size = new System.Drawing.Size(413, 214);
       this.txtConsole.TabIndex = 1;
       this.txtConsole.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
+      // 
+      // fatalColumn
+      // 
+      fatalColumn.Text = "Fatal";
+      fatalColumn.Width = 38;
       // 
       // MainForm
       // 
@@ -1544,6 +1587,8 @@ namespace WebCrawl.Gui
     private System.Windows.Forms.Label speed;
     private System.Windows.Forms.Label queued;
     private System.Windows.Forms.Label connections;
+    private System.Windows.Forms.CheckBox chkEnqueueBaseUrls;
+    private System.Windows.Forms.CheckBox chkPreferred;
 
   }
 }
