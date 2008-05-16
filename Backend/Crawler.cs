@@ -307,12 +307,13 @@ public sealed class Resource
   internal uint rewriteTag;
   internal int depth, failures;
   internal Status status;
+  internal Crawler.RewriteStatus rewriteStatus;
   internal Crawler.LinkType type;
-  internal bool rewritten;
 }
 #endregion
 
 #region ResourceComparer
+/// <summary>Compares resources by URL, ignoring any URL fragment.</summary>
 sealed class ResourceComparer : IComparer<Resource>
 {
   ResourceComparer() { }
@@ -357,11 +358,7 @@ public sealed class Crawler : IDisposable
     get { return baseDir; }
     set
     {
-      if(!IsStopped)
-      {
-        throw new InvalidOperationException("This property cannot be changed unless the crawler is stopped.");
-      }
-
+      AssertNotRunningForSetter();
       string newValue = value == null ?
         null : value.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
       if(newValue != baseDir)
@@ -495,13 +492,13 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets whether the crawler is completely stopped.</summary>
   public bool IsStopped
   {
-    get { return !running && CurrentDownloadCount == 0; }
+    get { return !running && !HasWorkToDo; }
   }
 
   /// <summary>Gets whether the crawler is stopping, but is not yet stopped.</summary>
   public bool IsStopping
   {
-    get { return !running && CurrentDownloadCount != 0; }
+    get { return !running && HasWorkToDo; }
   }
 
   /// <summary>Gets or sets the number of connections allowed to a single host.</summary>
@@ -686,7 +683,11 @@ public sealed class Crawler : IDisposable
   public bool RewriteLinks
   {
     get { return rewriteLinks; }
-    set { rewriteLinks = value; }
+    set
+    {
+      if(value) InitializeRewriteThread();
+      rewriteLinks = value;
+    }
   }
 
   /// <summary>Gets or sets the amount of time, in seconds, that the crawler will wait for a download to complete
@@ -729,11 +730,15 @@ public sealed class Crawler : IDisposable
   }
 
   /// <summary>Terminates all downloads and deinitializes the crawler.</summary>
-  public void Deinitialize()
+  /// <param name="timeToWait">The amount of time to wait for current downloads to complete, in milliseconds, or
+  /// <see cref="Infinite"/> to wait for as long as it takes.
+  /// </param>
+  public void Deinitialize(int timeToWait)
   {
-    Terminate(0); // stop all downloads and threads
-    services.Clear(); // remove all services
-    rewriteTag = 0; // reset the rewrite tag
+    Terminate(timeToWait); // stop all downloads and threads
+    services.Clear();      // remove all services
+    resourcesToRewrite.Clear(); // remove all resources from the rewrite queue
+    rewriteTag = 0;        // reset the rewrite tag
     baseDirInitialized = false;
   }
 
@@ -939,6 +944,10 @@ public sealed class Crawler : IDisposable
       baseDirInitialized = true;
     }
 
+    terminating = false;
+
+    if(RewriteLinks) InitializeRewriteThread();
+
     if(!running)
     {
       running = true;
@@ -969,6 +978,8 @@ public sealed class Crawler : IDisposable
       throw new ArgumentOutOfRangeException("The timeout must be non-negative or Infinite.");
     }
 
+    terminating = true;
+
     lock(threads)
     {
       Stop(); // first tell all threads to stop downloading
@@ -982,7 +993,7 @@ public sealed class Crawler : IDisposable
 
         // if we have a timeout remaining, see how long it actually took to terminate that thread, and subtract it from
         // the time to wait.
-        if(timeToWait != Timeout.Infinite && timeToWait > 0)
+        if(timeToWait != Infinite && timeToWait > 0)
         {
           timeToWait -= (int)timer.ElapsedMilliseconds;
           if(timeToWait < 0) timeToWait = 0;
@@ -992,6 +1003,14 @@ public sealed class Crawler : IDisposable
       }
 
       Debug.Assert(currentActiveThreads == 0);
+    }
+
+    if(rewriteThread != null)
+    {
+      rewriteEvent.Set();
+      if(!rewriteThread.Join(timeToWait == Infinite ? Timeout.Infinite : timeToWait)) rewriteThread.Abort();
+      rewriteThread = null;
+      rewriteEvent  = null;
     }
   }
 
@@ -1385,7 +1404,7 @@ public sealed class Crawler : IDisposable
         if(crawler.DepthLimit != Infinite && resource.Depth >= crawler.DepthLimit &&
            (resource.type != LinkType.Resource || (crawler.Download & ResourceType.ExternalResources) == 0))
         {
-          RewriteToOriginalUrl(resource);
+          BeginRewritingToOriginalUrl(resource);
           continue;
         }
 
@@ -1435,7 +1454,7 @@ public sealed class Crawler : IDisposable
               // the links.
               if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType))
               {
-                RewriteToOriginalUrl(resource);
+                BeginRewritingToOriginalUrl(resource);
                 continue;
               }
 
@@ -1471,7 +1490,7 @@ public sealed class Crawler : IDisposable
             // the links.
             if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType))
             {
-              RewriteToOriginalUrl(resource);
+              BeginRewritingToOriginalUrl(resource);
               goto finished;
             }
 
@@ -1487,7 +1506,7 @@ public sealed class Crawler : IDisposable
               bool isExternal;
               if(!crawler.IsUriAllowed(httpResponse.ResponseUri, resource.type, out isExternal))
               {
-                RewriteToOriginalUrl(resource);
+                BeginRewritingToOriginalUrl(resource);
                 goto finished;
               }
             }
@@ -1502,7 +1521,7 @@ public sealed class Crawler : IDisposable
           localPath = service.GetLocalFileName(resource.Uri, resource.contentType, resource.type);
           if(localPath == null) // if the filename is null, it means this resource is not wanted.
           {                     // this can happen for a page with too many different query strings
-            RewriteToOriginalUrl(resource);
+            BeginRewritingToOriginalUrl(resource);
             goto finished;
           }                                          
 
@@ -1566,14 +1585,15 @@ public sealed class Crawler : IDisposable
             {
               service.FreeLocalFileName(resource.Uri, localPath);
               localPath = null;
-              RewriteToOriginalUrl(resource);
+              BeginRewritingToOriginalUrl(resource);
             }
           }
 
           // if we wanted this file, rewrite links that reference it
           if(crawler.WantResource(resourceType))
           {
-            RewriteToLocalPath(resource, localPath);
+            resource.localPath = localPath;
+            BeginRewritingToLocalPath(resource);
 
             foreach(Resource res in resourcesToReference)
             {
@@ -1583,10 +1603,10 @@ public sealed class Crawler : IDisposable
                 // it's possible that the resource was rewritten between the time we added it to resourcesToReference
                 // and now. in that case, the reference would be ignored. so we need to manually rewrite it again to
                 // pick up the new reference
-                if(res.rewritten)
+                if(res.rewriteStatus == RewriteStatus.Rewritten)
                 {
-                  if(res.LocalPath != null) RewriteToLocalPath(res, res.LocalPath);
-                  else RewriteToOriginalUrl(res);
+                  if(res.LocalPath != null) BeginRewritingToLocalPath(res);
+                  else BeginRewritingToOriginalUrl(res);
                 }
               }
             }
@@ -1613,6 +1633,22 @@ public sealed class Crawler : IDisposable
       }
       
       Reset();
+    }
+
+    /// <summary>Adds the resource to the rewrite queue, to rewrite links to its local path, if link rewriting is
+    /// enabled and it does not seem to be added already.
+    /// </summary>
+    void BeginRewritingToLocalPath(Resource resource)
+    {
+      crawler.AddToRewriteQueue(resource, RewriteStatus.RewriteToFile);
+    }
+
+    /// <summary>Adds the resource to the rewrite queue, to rewrite links to its original URL, if link rewriting is
+    /// enabled and it does not seem to be added already.
+    /// </summary>
+    void BeginRewritingToOriginalUrl(Resource resource)
+    {
+      crawler.AddToRewriteQueue(resource, RewriteStatus.RewriteToUrl);
     }
 
     /// <summary>Copies data from the source stream to the destination stream. The amount of data copied will be
@@ -1873,8 +1909,10 @@ public sealed class Crawler : IDisposable
                   // EnqueueUri may be different than the fragment in absUri
                   newUri = crawler.GetRelativeUri(localDir, resource.LocalPath, absUri, type);
                 }
-                else if(!resource.rewritten) // otherwise, if the resource hasn't been rewritten yet, add this file 
-                {                            // as a reference and use the rewrite tag to create a placeholder url
+                // otherwise, if the resource hasn't been rewritten yet, add this file as a reference and use the
+                // rewrite tag to create a placeholder url
+                else if(resource.rewriteStatus != RewriteStatus.Rewritten)
+                {
                   if(resource.rewriteTag == 0) resource.rewriteTag = crawler.GetNextRewriteTag();
                   int index = resourcesToReference.BinarySearch(resource, ResourceComparer.Instance);
                   if(index < 0) resourcesToReference.Insert(~index, resource);
@@ -1892,57 +1930,6 @@ public sealed class Crawler : IDisposable
       catch(UriFormatException) { }
 
       return m.Value;
-    }
-
-    void RewriteToOriginalUrl(Resource resource)
-    {
-      lock(resource)
-      {
-        if(resource.references != null)
-        {
-          // omit the fragment from the URL, because it's already been added to the file
-          string placeHolder = resource.PlaceholderUrl, origUrl = resource.Uri.GetLeftPart(UriPartial.Query);
-          foreach(Resource reference in resource.references)
-          {
-            lock(reference) RewriteUrlInFile(reference.LocalPath, reference.encoding, placeHolder, origUrl);
-          }
-          resource.references.Clear();
-        }
-
-        resource.rewritten = true;
-      }
-    }
-
-    void RewriteToLocalPath(Resource resource, string localPath)
-    {
-      lock(resource)
-      {
-        if(resource.references != null)
-        {
-          string placeHolder = resource.PlaceholderUrl;
-          foreach(Resource reference in resource.references)
-          {
-            lock(reference)
-            {
-              RewriteUrlInFile(reference.LocalPath, reference.encoding, placeHolder,
-                               crawler.GetRelativeUri(Path.GetDirectoryName(reference.LocalPath), localPath,
-                                                      resource.Uri, resource.type));
-            }
-          }
-          resource.references.Clear();
-        }
-
-        resource.localPath = localPath;
-        resource.rewritten = true;
-      }
-    }
-
-    static void RewriteUrlInFile(string file, Encoding encoding, string placeholder, string newUrl)
-    {
-      string content;
-      using(StreamReader reader = new StreamReader(file, encoding)) content = reader.ReadToEnd();
-      content = content.Replace(placeholder, newUrl);
-      using(StreamWriter writer = new StreamWriter(file, false, encoding)) writer.Write(content);
     }
 
     /// <summary>The crawler employing the connection thread.</summary>
@@ -2561,12 +2548,69 @@ public sealed class Crawler : IDisposable
   #endregion
 
   /// <summary>An enum representing the type of a link.</summary>
-  internal enum LinkType
+  internal enum LinkType : byte
   {
     /// <summary>A standard link to an unknown type of document.</summary>
     Link,
     /// <summary>A link to a supporting resource that contains no links of its own.</summary>
     Resource
+  }
+
+  /// <summary>An enum representing the status of a resource regarding link rewriting.</summary>
+  internal enum RewriteStatus : byte
+  {
+    /// <summary>The rewriting process for the resource has not yet begun.</summary>
+    None,
+    /// <summary>The resource has been added to the rewrite list and is awaiting being rewritten to its original URL.</summary>
+    RewriteToUrl,
+    /// <summary>The resource has been added to the rewrite list and is awaiting being rewritten to its local path.</summary>
+    RewriteToFile,
+    /// <summary>The resource has finished being rewritten.</summary>
+    Rewritten
+  }
+
+  /// <summary>Gets whether there is currently some crawl-related work to be done, such as downloading resources or
+  /// rewriting links.
+  /// </summary>
+  bool HasWorkToDo
+  {
+    get { return CurrentDownloadCount != 0 || rewriteThread != null && resourcesToRewrite.Count != 0; }
+  }
+
+  /// <summary>Adds the given resource to the rewrite queue, if it does not seem to have been added already and
+  /// link rewriting is enabled.
+  /// </summary>
+  void AddToRewriteQueue(Resource resource, RewriteStatus status)
+  {
+    if(RewriteLinks)
+    {
+      lock(resource)
+      {
+        bool shouldEnqueue =
+          resource.rewriteStatus != RewriteStatus.RewriteToFile && resource.rewriteStatus != RewriteStatus.RewriteToUrl;
+        resource.rewriteStatus = status;
+
+        if(shouldEnqueue)
+        {
+          lock(resourcesToRewrite)
+          {
+            resourcesToRewrite.Enqueue(resource);
+            rewriteEvent.Set();
+          }
+        }
+      }
+    }
+  }
+
+  /// <summary>Throws an exception if the crawler is running. This is meant to be called from property setters that
+  /// cannot be changed while the crawler is running.
+  /// </summary>
+  void AssertNotRunningForSetter()
+  {
+    if(!IsStopped)
+    {
+      throw new InvalidOperationException("This property cannot be changed unless the crawler is stopped.");
+    }
   }
 
   /// <summary>Determines whether the domain names in the two URIs are identical. This method will return true if
@@ -2720,7 +2764,7 @@ public sealed class Crawler : IDisposable
   /// <summary>Deinitializes the crawler and disposes it.</summary>
   void Dispose(bool finalizing)
   {
-    Deinitialize();
+    Deinitialize(0);
     disposed = true;
   }
 
@@ -2886,6 +2930,17 @@ public sealed class Crawler : IDisposable
     thread.Stop();
   }
 
+  /// <summary>Starts the rewrite thread.</summary>
+  void InitializeRewriteThread()
+  {
+    if(rewriteThread == null)
+    {
+      rewriteThread = new Thread(RewriteThreadFunc);
+      rewriteEvent  = new AutoResetEvent(true);
+      rewriteThread.Start();
+    }
+  }
+
   /// <summary>Determines if the given absolute URI is allowed, and whether it is an external resource.</summary>
   bool IsUriAllowed(Uri uri, LinkType type, out bool isExternal)
   {
@@ -2995,6 +3050,79 @@ public sealed class Crawler : IDisposable
     }
   }
 
+  void RewriteThreadFunc()
+  {
+    while(!terminating)
+    {
+      rewriteEvent.WaitOne();
+
+      while(resourcesToRewrite.Count != 0)
+      {
+        Resource resource = null;
+        lock(resourcesToRewrite)
+        {
+          if(resourcesToRewrite.Count != 0) resource = resourcesToRewrite.Dequeue();
+        }
+
+        if(resource != null)
+        {
+          if(resource.rewriteStatus == RewriteStatus.RewriteToFile) RewriteToLocalPath(resource);
+          else if(resource.rewriteStatus == RewriteStatus.RewriteToUrl) RewriteToOriginalUrl(resource);
+        }
+      }
+    }
+  }
+
+  void RewriteToOriginalUrl(Resource resource)
+  {
+    lock(resource)
+    {
+      if(resource.references != null)
+      {
+        // omit the fragment from the URL, because it's already been added to the file
+        string placeHolder = resource.PlaceholderUrl, origUrl = resource.Uri.GetLeftPart(UriPartial.Query);
+        foreach(Resource reference in resource.references)
+        {
+          lock(reference) RewriteUrlInFile(reference.LocalPath, reference.encoding, placeHolder, origUrl);
+        }
+        resource.references = null;
+      }
+
+      resource.rewriteStatus = RewriteStatus.Rewritten;
+    }
+  }
+
+  void RewriteToLocalPath(Resource resource)
+  {
+    lock(resource)
+    {
+      if(resource.references != null)
+      {
+        string placeHolder = resource.PlaceholderUrl;
+        foreach(Resource reference in resource.references)
+        {
+          lock(reference)
+          {
+            RewriteUrlInFile(reference.LocalPath, reference.encoding, placeHolder,
+                             GetRelativeUri(Path.GetDirectoryName(reference.LocalPath), resource.LocalPath,
+                                            resource.Uri, resource.type));
+          }
+        }
+        resource.references = null;
+      }
+
+      resource.rewriteStatus = RewriteStatus.Rewritten;
+    }
+  }
+
+  static void RewriteUrlInFile(string file, Encoding encoding, string placeholder, string newUrl)
+  {
+    string content;
+    using(StreamReader reader = new StreamReader(file, encoding)) content = reader.ReadToEnd();
+    content = content.Replace(placeholder, newUrl);
+    using(StreamWriter writer = new StreamWriter(file, false, encoding)) writer.Write(content);
+  }
+
   /// <summary>Given a service point, sets its properties based on the configuration of the crawler.</summary>
   void SetServicePointProperties(ServicePoint point)
   {
@@ -3021,15 +3149,15 @@ public sealed class Crawler : IDisposable
   /// <summary>A dictionary mapping file extensions to the MIME types that are assumed for resources with the
   /// extension.
   /// </summary>
-  Dictionary<string,string> extensionToMime = new Dictionary<string,string>();
+  readonly Dictionary<string,string> extensionToMime = new Dictionary<string,string>();
   /// <summary>A dictionary mapping MIME types to their most common file extension.</summary>
-  Dictionary<string,string> mimeToExtension = new Dictionary<string,string>();
+  readonly Dictionary<string,string> mimeToExtension = new Dictionary<string,string>();
   /// <summary>A dictionary mapping service keys to the corresponding services.</summary>
-  Dictionary<string,Service> services = new Dictionary<string,Service>();
+  readonly Dictionary<string,Service> services = new Dictionary<string,Service>();
   /// <summary>A list of base URIs that have been added to the crawler.</summary>
-  List<Uri> baseUris = new List<Uri>();
+  readonly List<Uri> baseUris = new List<Uri>();
   /// <summary>A list of connection threads.</summary>
-  List<ConnectionThread> threads = new List<ConnectionThread>();
+  readonly List<ConnectionThread> threads = new List<ConnectionThread>();
   /// <summary>The user agent string reported to the web server, or null to report no user agent.</summary>
   string userAgent = "Mozilla/4.5 (compatible; AdamMil 1.0; Windows XP)";
   /// <summary>The preferred language reported to the web server, or null to report no preference.</summary>
@@ -3038,6 +3166,12 @@ public sealed class Crawler : IDisposable
   string baseDir;
   /// <summary>The referrer sent to the web server for root URIs that have no referrers.</summary>
   Uri defaultReferrer;
+  /// <summary>The thread that handles rewriting links in downloaded resources.</summary>
+  Thread rewriteThread;
+  /// <summary>An event to wake up the rewrite thread.</summary>
+  AutoResetEvent rewriteEvent;
+  /// <summary>A list of resources that are awaiting being rewritten.</summary>
+  readonly Queue<Resource> resourcesToRewrite = new Queue<Resource>();
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, depthLimit = 50, retries = 1,
       maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
       maxQueryStrings = 500, rewriteTag;
@@ -3048,12 +3182,12 @@ public sealed class Crawler : IDisposable
   /// <summary>The types of resources the crawler is interested in downloading, and their priorities.</summary>
   ResourceType download = ResourceType.Everything | ResourceType.ExternalResources;
   bool rewriteLinks = true, useCookies = true, errorFiles = true, passiveFtp = true, caseSensitive=true, disposed,
-       running, baseDirInitialized;
+       running, baseDirInitialized, terminating;
 
   /// <summary>Matches the domain name (not including subdomains) in a host name.</summary>
-  static Regex domainRe = new Regex(@"[\w-]+\.[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
+  static readonly Regex domainRe = new Regex(@"[\w-]+\.[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
   /// <summary>Matches the top-level domain in a host name.</summary>
-  static Regex tldRe = new Regex(@"(?<=\.)[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
+  static readonly Regex tldRe = new Regex(@"(?<=\.)[\w]+$", RegexOptions.Compiled | RegexOptions.Singleline);
 }
 #endregion
 
