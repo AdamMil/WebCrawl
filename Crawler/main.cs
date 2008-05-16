@@ -154,7 +154,7 @@ static class App
             break;
           
           case "teardown":
-            crawl.Deinitialize();
+            crawl.Deinitialize(0);
             Console.WriteLine("Crawler has been terminated and deinitialized.");
             break;
 

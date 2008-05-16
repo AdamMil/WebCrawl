@@ -632,7 +632,7 @@ public partial class MainForm : Form
   {
     txtBaseUrls.Enabled = txtOutDir.Enabled = true;
     downloads.Items.Clear();
-    crawler.Deinitialize();
+    crawler.Deinitialize(0);
     UpdateCrawlerMenu();
     speedLabel.Text = "Stopped.";
   }
