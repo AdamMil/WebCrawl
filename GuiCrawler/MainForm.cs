@@ -118,16 +118,16 @@ public partial class MainForm : Form
       }
     }
 
-    crawler.DirectoryNavigation = (DirectoryNavigation)dirNav.SelectedItem;
-    crawler.DomainNavigation = (DomainNavigation)domainNav.SelectedItem;
-    crawler.MaxConnections = ParseLimit(maxConnections.Text);
-    crawler.MaxConnectionsPerServer = ParseLimit(connsPerServer.Text);
+    crawler.DirectoryNavigation = (DirectoryNavigation)cmbDirNav.SelectedItem;
+    crawler.DomainNavigation = (DomainNavigation)cmbDomainNav.SelectedItem;
+    crawler.MaxConnections = ParseLimit(txtMaxConnections.Text);
+    crawler.MaxConnectionsPerServer = ParseLimit(txtConnsPerServer.Text);
     ResourceType want = 0;
-    if(download.GetItemChecked(0)) want |= ResourceType.Html;
-    if(download.GetItemChecked(1)) want |= ResourceType.NonHtml;
-    if(download.GetItemChecked(2)) want |= ResourceType.ExternalResources;
-    if(download.GetItemChecked(3)) want |= ResourceType.PrioritizeHtml;
-    else if(download.GetItemChecked(4)) want |= ResourceType.PrioritizeNonHtml;
+    if(lstDownload.GetItemChecked(0)) want |= ResourceType.Html;
+    if(lstDownload.GetItemChecked(1)) want |= ResourceType.NonHtml;
+    if(lstDownload.GetItemChecked(2)) want |= ResourceType.ExternalResources;
+    if(lstDownload.GetItemChecked(3)) want |= ResourceType.PrioritizeHtml;
+    else if(lstDownload.GetItemChecked(4)) want |= ResourceType.PrioritizeNonHtml;
     crawler.Download = want;
     crawler.RewriteLinks = chkLinkRewrite.Checked;
     crawler.UseCookies = chkCookies.Checked;
@@ -135,19 +135,20 @@ public partial class MainForm : Form
 
     // advanced setup page
     extraUrls.Clear();
-    foreach(string line in additionalUrls.Lines)
+    foreach(string line in txtAdditionalUrls.Lines)
     {
       if(!string.IsNullOrEmpty(line)) extraUrls.Add(new Uri(line));
     }
-    crawler.MaxFileSize = ParseSizeLimit(fileSize.Text);
-    crawler.MaxQueryStringsPerFile = ParseLimit(queryStrings.Text);
-    crawler.DepthLimit = ParseLimit(maxDepth.Text);
-    crawler.MaxRetries = ParseLimit(retries.Text);
-    crawler.ConnectionIdleTimeout = ParseTimeLimit(idleTimeout.Text);
-    crawler.ReadTimeout = ParseTimeLimit(readTimeout.Text);
-    crawler.TransferTimeout = ParseTimeLimit(transferTimeout.Text);
-    crawler.DefaultReferrer = string.IsNullOrEmpty(referrer.Text) ? null : new Uri(referrer.Text);
-    crawler.UserAgent = Null(userAgent.Text);
+    crawler.MaxFileSize = ParseSizeLimit(txtFileSize.Text);
+    crawler.MaxQueryStringsPerFile = ParseLimit(txtQueryStrings.Text);
+    crawler.DepthLimit = ParseLimit(txtMaxDepth.Text);
+    crawler.MaxRetries = ParseLimit(txtRetries.Text);
+    crawler.ConnectionIdleTimeout = ParseTimeLimit(txtIdleTimeout.Text);
+    crawler.ReadTimeout = ParseTimeLimit(txtReadTimeout.Text);
+    crawler.TransferTimeout = ParseTimeLimit(txtTransferTimeout.Text);
+    crawler.MaxQueuedLinks = ParseLimit(txtMaxQueue.Text);
+    crawler.DefaultReferrer = string.IsNullOrEmpty(txtReferrer.Text) ? null : new Uri(txtReferrer.Text);
+    crawler.UserAgent = Null(txtUserAgent.Text);
     normalizeQueries = chkNormalizeQueries.Checked;
     normalizeHosts = chkNormalizeHosts.Checked;
     crawler.PassiveFtp = chkPassiveFtp.Checked;
@@ -317,15 +318,15 @@ public partial class MainForm : Form
     foreach(Uri uri in crawler.GetBaseUris()) lines.Add(uri.AbsoluteUri);
     txtBaseUrls.Lines = lines.ToArray();
     txtOutDir.Text = NoNull(crawler.BaseDirectory);
-    dirNav.SelectedItem = crawler.DirectoryNavigation;
-    domainNav.SelectedItem = crawler.DomainNavigation;
-    maxConnections.Text = LimitToString(crawler.MaxConnections);
-    connsPerServer.Text = LimitToString(crawler.MaxConnectionsPerServer);
-    download.SetItemChecked(0, (crawler.Download & ResourceType.Html) != 0);
-    download.SetItemChecked(1, (crawler.Download & ResourceType.NonHtml) != 0);
-    download.SetItemChecked(2, (crawler.Download & ResourceType.ExternalResources) != 0);
-    download.SetItemChecked(3, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeHtml);
-    download.SetItemChecked(4, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeNonHtml);
+    cmbDirNav.SelectedItem = crawler.DirectoryNavigation;
+    cmbDomainNav.SelectedItem = crawler.DomainNavigation;
+    txtMaxConnections.Text = LimitToString(crawler.MaxConnections);
+    txtConnsPerServer.Text = LimitToString(crawler.MaxConnectionsPerServer);
+    lstDownload.SetItemChecked(0, (crawler.Download & ResourceType.Html) != 0);
+    lstDownload.SetItemChecked(1, (crawler.Download & ResourceType.NonHtml) != 0);
+    lstDownload.SetItemChecked(2, (crawler.Download & ResourceType.ExternalResources) != 0);
+    lstDownload.SetItemChecked(3, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeHtml);
+    lstDownload.SetItemChecked(4, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeNonHtml);
     chkLinkRewrite.Checked = crawler.RewriteLinks;
     chkCookies.Checked = crawler.UseCookies;
     chkGenerateErrorFiles.Checked = crawler.GenerateErrorFiles;
@@ -333,23 +334,24 @@ public partial class MainForm : Form
     // advanced setup page
     lines.Clear();
     foreach(Uri uri in extraUrls) lines.Add(uri.AbsoluteUri);
-    additionalUrls.Lines = lines.ToArray();
+    txtAdditionalUrls.Lines = lines.ToArray();
 
-    fileSize.Text = SizeLimitToString(crawler.MaxFileSize);
-    queryStrings.Text = LimitToString(crawler.MaxQueryStringsPerFile);
-    maxDepth.Text = LimitToString(crawler.DepthLimit);
-    retries.Text = LimitToString(crawler.MaxRetries);
-    idleTimeout.Text = TimeLimitToString(crawler.ConnectionIdleTimeout);
-    readTimeout.Text = TimeLimitToString(crawler.ReadTimeout);
-    transferTimeout.Text = TimeLimitToString(crawler.TransferTimeout);
-    referrer.Text = crawler.DefaultReferrer == null ? string.Empty : crawler.DefaultReferrer.AbsoluteUri;
-    userAgent.Text = NoNull(crawler.UserAgent);
+    txtFileSize.Text = SizeLimitToString(crawler.MaxFileSize);
+    txtQueryStrings.Text = LimitToString(crawler.MaxQueryStringsPerFile);
+    txtMaxDepth.Text = LimitToString(crawler.DepthLimit);
+    txtRetries.Text = LimitToString(crawler.MaxRetries);
+    txtIdleTimeout.Text = TimeLimitToString(crawler.ConnectionIdleTimeout);
+    txtReadTimeout.Text = TimeLimitToString(crawler.ReadTimeout);
+    txtTransferTimeout.Text = TimeLimitToString(crawler.TransferTimeout);
+    txtMaxQueue.Text = LimitToString(crawler.MaxQueuedLinks);
+    txtReferrer.Text = crawler.DefaultReferrer == null ? string.Empty : crawler.DefaultReferrer.AbsoluteUri;
+    txtUserAgent.Text = NoNull(crawler.UserAgent);
     chkNormalizeQueries.Checked = normalizeQueries;
     chkNormalizeHosts.Checked   = normalizeHosts;
     chkPassiveFtp.Checked = crawler.PassiveFtp;
     chkClear.Checked = clearDownloadDir;
     chkEnqueueBaseUrls.Checked = enqueueBaseUrls;
-    language.SelectedIndex = FindLanguage(crawler.PreferredLanguage);
+    cmbLanguage.SelectedIndex = FindLanguage(crawler.PreferredLanguage);
 
     // filters
     filters.Items.Clear();
@@ -475,7 +477,7 @@ public partial class MainForm : Form
       if(!ValidateUrl("base", line)) return false;
     }
 
-    foreach(string line in additionalUrls.Lines)
+    foreach(string line in txtAdditionalUrls.Lines)
     {
       if(!ValidateUrl("additional", line)) return false;
     }
@@ -490,16 +492,17 @@ public partial class MainForm : Form
       }
     }
 
-    return ValidateLimit("Maximum connections", maxConnections.Text)    &&
-           ValidateLimit("Connections per server", connsPerServer.Text) &&
-           ValidateLimit("Query string limit", queryStrings.Text)       &&
-           ValidateLimit("Maximum depth", maxDepth.Text)                &&
-           ValidateLimit("Maximum retries", retries.Text)               &&
-           ValidateSizeLimit("Maximum file size", fileSize.Text)        &&
-           ValidateTimeLimit("Idle timeout", idleTimeout.Text)          &&
-           ValidateTimeLimit("Read timeout", readTimeout.Text)          &&
-           ValidateTimeLimit("Transfer timeout", transferTimeout.Text)  &&
-           ValidateUrl("referrer", referrer.Text);
+    return ValidateLimit("Maximum connections", txtMaxConnections.Text)    &&
+           ValidateLimit("Connections per server", txtConnsPerServer.Text) &&
+           ValidateLimit("Query string limit", txtQueryStrings.Text)       &&
+           ValidateLimit("Maximum depth", txtMaxDepth.Text)                &&
+           ValidateLimit("Maximum retries", txtRetries.Text)               &&
+           ValidateLimit("Maximum queued links", txtMaxQueue.Text)         &&
+           ValidateSizeLimit("Maximum file size", txtFileSize.Text)        &&
+           ValidateTimeLimit("Idle timeout", txtIdleTimeout.Text)          &&
+           ValidateTimeLimit("Read timeout", txtReadTimeout.Text)          &&
+           ValidateTimeLimit("Transfer timeout", txtTransferTimeout.Text)  &&
+           ValidateUrl("referrer", txtReferrer.Text);
   }
 
   bool ValidateLimit(string name, string value)
@@ -564,9 +567,9 @@ public partial class MainForm : Form
 
   int FindLanguage(string code)
   {
-    for(int i=1; i<language.Items.Count; i++)
+    for(int i=1; i<cmbLanguage.Items.Count; i++)
     {
-      string lang = (string)language.Items[i];
+      string lang = (string)cmbLanguage.Items[i];
       int paren = lang.LastIndexOf('(');
       if(string.Equals(code, lang.Substring(paren, lang.Length-paren-2), StringComparison.OrdinalIgnoreCase))
       {
@@ -579,7 +582,7 @@ public partial class MainForm : Form
 
   string GetLanguage()
   {
-    string lang = (string)language.SelectedItem;
+    string lang = (string)cmbLanguage.SelectedItem;
     int paren = lang.LastIndexOf('(');
     return paren == -1 ? null : lang.Substring(paren, lang.Length-paren-2);
   }
@@ -587,9 +590,11 @@ public partial class MainForm : Form
   void UpdateCrawlerInfo()
   {
     Download[] downloads = crawler.GetCurrentDownloads();
-    connections.Text = downloads.Length.ToString();
-    queued.Text      = crawler.CurrentLinksQueued.ToString();
-    speed.Text       = (crawler.CurrentBytesPerSecond / 1024.0).ToString("f1") + " kps";
+    connections.Text         = downloads.Length.ToString();
+    queued.Text              = crawler.CurrentLinksQueued.ToString();
+    speed.Text               = (crawler.CurrentBytesPerSecond / 1024.0).ToString("f1") + " kps";
+    downloadedResources.Text = crawler.TotalResourcesDownloaded.ToString();
+    bytesDownloaded.Text     = SizeToString(crawler.TotalBytesDownloaded);
 
     if(crawler.IsRunning || crawler.IsStopping) speedLabel.Text = speed.Text;
     else if(crawler.IsStopped && !crawler.IsDone) speedLabel.Text = "Paused.";
@@ -605,7 +610,7 @@ public partial class MainForm : Form
       this.downloads.Items.Add(new ListViewItem(new string[] {
         download.Resource.Uri.AbsolutePath + download.Resource.Uri.Query,
         (download.CurrentSpeed / 1024.0).ToString("f1")+" kps",
-        bytesStr, download.Resource.Uri.Authority }));
+        bytesStr, download.Resource.ContentType, download.Resource.Uri.Authority }));
     }
     this.downloads.ResumeLayout();
   }
@@ -630,6 +635,11 @@ public partial class MainForm : Form
 
   void OnCrawlStopped()
   {
+    updateTimer.Stop();
+    updateTimer.Dispose();
+    updateTimer = null;
+    UpdateCrawlerInfo();
+
     txtBaseUrls.Enabled = txtOutDir.Enabled = true;
     downloads.Items.Clear();
     crawler.Deinitialize(0);
@@ -656,14 +666,19 @@ public partial class MainForm : Form
     if(fd.ShowDialog() == DialogResult.OK) txtOutDir.Text = fd.SelectedPath;
   }
 
+  void clearErrorsMenuItem_Click(object sender, EventArgs e)
+  {
+    recentErrors.Items.Clear();
+  }
+
   void download_ItemCheck(object sender, ItemCheckEventArgs e)
   {
     if(e.CurrentValue == e.NewValue) return;
 
     if(e.NewValue == CheckState.Checked)
     {
-      if(e.Index == 3) download.SetItemChecked(4, false);
-      else if(e.Index == 4) download.SetItemChecked(3, false);
+      if(e.Index == 3) lstDownload.SetItemChecked(4, false);
+      else if(e.Index == 4) lstDownload.SetItemChecked(3, false);
     }
 
     OnFormChanged(sender, e);
@@ -693,8 +708,8 @@ public partial class MainForm : Form
     {
       ListViewItem item = filters.Items[filters.SelectedIndices[0]];
       txtRegex.Text = item.SubItems[0].Text;
-      filterType.SelectedItem = item.SubItems[1].Text;
-      if(filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3) txtReplacement.Text = item.SubItems[2].Text;
+      cmbFilterType.SelectedItem = item.SubItems[1].Text;
+      if(cmbFilterType.SelectedIndex == 2 || cmbFilterType.SelectedIndex == 3) txtReplacement.Text = item.SubItems[2].Text;
 
       btnDeleteFilter.Enabled = true;
     }
@@ -761,9 +776,9 @@ public partial class MainForm : Form
       return;
     }
 
-    filters.Items.Add(filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3
-      ? MakeListItem(new ChangeFilter(pattern, txtReplacement.Text), (string)filterType.SelectedItem) :
-        MakeListItem(new Filter(pattern), (string)filterType.SelectedItem));
+    filters.Items.Add(cmbFilterType.SelectedIndex == 2 || cmbFilterType.SelectedIndex == 3
+      ? MakeListItem(new ChangeFilter(pattern, txtReplacement.Text), (string)cmbFilterType.SelectedItem) :
+        MakeListItem(new Filter(pattern), (string)cmbFilterType.SelectedItem));
     OnFormChanged(sender, e);
   }
 
@@ -787,7 +802,7 @@ public partial class MainForm : Form
 
   void filterType_SelectedIndexChanged(object sender, EventArgs e)
   {
-    txtReplacement.Enabled = filterType.SelectedIndex == 2 || filterType.SelectedIndex == 3;
+    txtReplacement.Enabled = cmbFilterType.SelectedIndex == 2 || cmbFilterType.SelectedIndex == 3;
   }
 
   void listView_ColumnClick(object sender, ColumnClickEventArgs e)
@@ -1001,21 +1016,21 @@ public partial class MainForm : Form
 
   void InitializeItems()
   {
-    domainNav.Items.Add(DomainNavigation.Everywhere);
-    domainNav.Items.Add(DomainNavigation.SameDomain);
-    domainNav.Items.Add(DomainNavigation.SameHostName);
-    domainNav.Items.Add(DomainNavigation.SameTLD);
+    cmbDomainNav.Items.Add(DomainNavigation.Everywhere);
+    cmbDomainNav.Items.Add(DomainNavigation.SameDomain);
+    cmbDomainNav.Items.Add(DomainNavigation.SameHostName);
+    cmbDomainNav.Items.Add(DomainNavigation.SameTLD);
 
-    dirNav.Items.Add(DirectoryNavigation.Down);
-    dirNav.Items.Add(DirectoryNavigation.Same);
-    dirNav.Items.Add(DirectoryNavigation.Up);
-    dirNav.Items.Add(DirectoryNavigation.UpAndDown);
+    cmbDirNav.Items.Add(DirectoryNavigation.Down);
+    cmbDirNav.Items.Add(DirectoryNavigation.Same);
+    cmbDirNav.Items.Add(DirectoryNavigation.Up);
+    cmbDirNav.Items.Add(DirectoryNavigation.UpAndDown);
 
-    download.Items.Add("Save Html");
-    download.Items.Add("Save Non-Html");
-    download.Items.Add("Save External Resources");
-    download.Items.Add("Prioritize Html");
-    download.Items.Add("Prioritize Non-Html");
+    lstDownload.Items.Add("Save Html");
+    lstDownload.Items.Add("Save Non-Html");
+    lstDownload.Items.Add("Save External Resources");
+    lstDownload.Items.Add("Prioritize Html");
+    lstDownload.Items.Add("Prioritize Non-Html");
 
     List<string> languages = new List<string>();
     foreach(CultureInfo culture in CultureInfo.GetCultures(CultureTypes.AllCultures))
@@ -1028,9 +1043,9 @@ public partial class MainForm : Form
 
     languages.Sort();
     languages.Insert(0, "No preference");
-    foreach(string language in languages) this.language.Items.Add(language);
+    foreach(string language in languages) this.cmbLanguage.Items.Add(language);
 
-    filterType.SelectedIndex = 0;
+    cmbFilterType.SelectedIndex = 0;
   }
 
   static string LimitToString(long limit)
@@ -1115,6 +1130,29 @@ public partial class MainForm : Form
   {
     return varRe.Replace(replacement,
       delegate(Match var) { return match.Groups[int.Parse(var.Groups["group"].Value)].Value; });
+  }
+
+  static string SizeToString(long size)
+  {
+    double dblSize = size;
+    string suffix = null;
+    if(size >= 1024*1024*1024)
+    {
+      dblSize /= 1024*1024*1024;
+      suffix = " gb";
+    }
+    else if(size >= 1024*1024)
+    {
+      dblSize /= 1024*1024;
+      suffix = " mb";
+    }
+    else if(size >= 1024)
+    {
+      dblSize /= 1024;
+      suffix = " kb";
+    }
+
+    return dblSize.ToString("f2") + suffix;
   }
 
   static string SizeLimitToString(long limit)
