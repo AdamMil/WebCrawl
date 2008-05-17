@@ -571,7 +571,7 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets or sets the maximum number of links that can be queued at any given time, or <see cref="Infinite"/>
   /// to specify that there is no limit.
   /// </summary>
-  /// <remarks>Links found when the queue is full will be ignored. The default value is 100000.</remarks>
+  /// <remarks>Links found when the queue is full will be ignored. The default value is <see cref="Infinite"/>.</remarks>
   public int MaxQueuedLinks
   {
     get { return maxQueuedLinks; }
@@ -3193,7 +3193,7 @@ public sealed class Crawler : IDisposable
   /// <summary>A list of resources that are awaiting being rewritten.</summary>
   readonly Queue<Resource> resourcesToRewrite = new Queue<Resource>();
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, depthLimit = 50, retries = 1,
-      maxQueuedLinks = 100000, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
+      maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
       maxQueryStrings = 500, rewriteTag, resourcesDownloaded;
   /// <summary>The allowed directory navigation.</summary>
   DirectoryNavigation dirNav = DirectoryNavigation.Down;
