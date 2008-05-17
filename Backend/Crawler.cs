@@ -571,7 +571,7 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets or sets the maximum number of links that can be queued at any given time, or <see cref="Infinite"/>
   /// to specify that there is no limit.
   /// </summary>
-  /// <remarks>Links found when the queue is full will be ignored. The default value is <see cref="Infinite"/>.</remarks>
+  /// <remarks>Links found when the queue is full will be ignored. The default value is 100000.</remarks>
   public int MaxQueuedLinks
   {
     get { return maxQueuedLinks; }
@@ -690,6 +690,18 @@ public sealed class Crawler : IDisposable
     }
   }
 
+  /// <summary>Gets the total number of resources downloaded since the crawler was last initialized.</summary>
+  public int TotalResourcesDownloaded
+  {
+    get { return resourcesDownloaded; }
+  }
+
+  /// <summary>Gets the total number of bytes downloaded since the crawler was last initialized.</summary>
+  public long TotalBytesDownloaded
+  {
+    get { return bytesDownloaded; }
+  }
+
   /// <summary>Gets or sets the amount of time, in seconds, that the crawler will wait for a download to complete
   /// before closing the connection. Setting this to <see cref="Infinite"/> will specify no timeout.
   /// </summary>
@@ -739,6 +751,7 @@ public sealed class Crawler : IDisposable
     services.Clear();      // remove all services
     resourcesToRewrite.Clear(); // remove all resources from the rewrite queue
     rewriteTag = 0;        // reset the rewrite tag
+    bytesDownloaded = resourcesDownloaded = 0; // reset accounting variables
     baseDirInitialized = false;
   }
 
@@ -1529,6 +1542,7 @@ public sealed class Crawler : IDisposable
           resource.size = response.ContentLength;
           if(response.ContentLength != -1) outFile.SetLength(response.ContentLength);
           CopyStream(response.GetResponseStream(), outFile, timer);
+          crawler.OnResourceTransferred(resource);
 
           resource.encoding = resourceType == ResourceType.Html ? GetEncoding(httpResponse) : null;
 
@@ -1621,7 +1635,7 @@ public sealed class Crawler : IDisposable
           Service currentService = service;    // a thread abortion, they may be cleared by another thread
           if(currentResource != null && currentService != null)
           {
-            currentService.FreeLocalFileName(currentResource.Uri, localPath);
+            if(localPath != null) currentService.FreeLocalFileName(currentResource.Uri, localPath);
             currentService.Enqueue(currentResource, true);
             crawler.OnErrorOccurred(currentResource, ex, false);
           }
@@ -1740,7 +1754,7 @@ public sealed class Crawler : IDisposable
       {
         if(service != null)
         {
-          service.FreeLocalFileName(resource.Uri, localPath);
+          if(localPath != null) service.FreeLocalFileName(resource.Uri, localPath);
           service.Enqueue(resource, true);
         }
       }
@@ -3023,6 +3037,12 @@ public sealed class Crawler : IDisposable
     }
   }
 
+  void OnResourceTransferred(Resource resource)
+  {
+    Interlocked.Increment(ref resourcesDownloaded);
+    Interlocked.Add(ref bytesDownloaded, resource.bytesDownloaded);
+  }
+
   /// <summary>Called by a connection thread when it has run out of resources to download from its associated service.</summary>
   /// <remarks>This method will attempt to find a new service to associate the thread with.</remarks>
   void OnThreadIdle(ConnectionThread thread)
@@ -3145,7 +3165,7 @@ public sealed class Crawler : IDisposable
     return (download & resourceType) != 0;
   }
 
-  long maxSize = 50*1024*1024;
+  long maxSize = 50*1024*1024, bytesDownloaded;
   /// <summary>A dictionary mapping file extensions to the MIME types that are assumed for resources with the
   /// extension.
   /// </summary>
@@ -3173,8 +3193,8 @@ public sealed class Crawler : IDisposable
   /// <summary>A list of resources that are awaiting being rewritten.</summary>
   readonly Queue<Resource> resourcesToRewrite = new Queue<Resource>();
   int idleTimeout = 30, connsPerServer = 2, maxConnections = 10, depthLimit = 50, retries = 1,
-      maxQueuedLinks = Infinite, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
-      maxQueryStrings = 500, rewriteTag;
+      maxQueuedLinks = 100000, ioTimeout = 60, transferTimeout = 5*60, maxRedirects = 20, currentActiveThreads,
+      maxQueryStrings = 500, rewriteTag, resourcesDownloaded;
   /// <summary>The allowed directory navigation.</summary>
   DirectoryNavigation dirNav = DirectoryNavigation.Down;
   /// <summary>The allowed domain navigation.</summary>
