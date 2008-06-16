@@ -126,24 +126,6 @@
   <metadata name="fileMenu.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
-  <metadata name="fileMenu.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="newProjectMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="openProjectMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="saveProjectMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="saveProjectAsMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="menuSep1.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
   <metadata name="newProjectMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
@@ -246,6 +228,12 @@
   <metadata name="lblRegex.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
+  <metadata name="filterColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+    <value>False</value>
+  </metadata>
+  <metadata name="typeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+    <value>False</value>
+  </metadata>
   <metadata name="mimeTypesTab.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
@@ -253,6 +241,15 @@
     <value>False</value>
   </metadata>
   <metadata name="lblExtension.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+    <value>False</value>
+  </metadata>
+  <metadata name="extensionColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+    <value>False</value>
+  </metadata>
+  <metadata name="mimeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
+    <value>False</value>
+  </metadata>
+  <metadata name="preferredColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
   <metadata name="progressTab.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
@@ -318,127 +315,47 @@
   <metadata name="clearErrorsMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
     <value>False</value>
   </metadata>
-  <metadata name="lblBaseUrls.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblConnsPerServer.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblConns.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblDownload.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblDomainNav.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblDirNav.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="browseOutDir.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblOutDir.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblAdditionalUrls.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblLanguage.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblUserAgent.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblReferrer.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblTransfer.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblRead.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblIdle.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblRetries.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblQueryStrings.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblFileSize.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblDepth.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblType.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblReplacement.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblRegex.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="filterColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="typeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="filterColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="typeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblMime.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblExtension.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="extensionColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="mimeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="preferredColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="extensionColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="mimeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="preferredColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="pathColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="speedColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="sizeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="mimeTypeColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="hostColumn.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="clearErrorsMenuItem.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
-  <metadata name="lblMaxQueue.GenerateMember" type="System.Boolean, mscorlib, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089">
-    <value>False</value>
-  </metadata>
+  <assembly alias="System.Drawing" name="System.Drawing, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <data name="$this.Icon" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+    <value>
+        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
+        AAAAAAAAAAAAAAAAAAAAAAAA
+</value>
+  </data>
 </root>
