@@ -699,7 +699,19 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets the total number of bytes downloaded since the crawler was last initialized.</summary>
   public long TotalBytesDownloaded
   {
-    get { return bytesDownloaded; }
+    get
+    {
+      long bytes = bytesDownloaded;
+      lock(threads)
+      {
+        foreach(ConnectionThread thread in threads)
+        {
+          Resource resource = thread.CurrentResource;
+          if(resource != null) bytes += resource.BytesDownloaded;
+        }
+      }
+      return bytes;
+    }
   }
 
   /// <summary>Gets or sets the amount of time, in seconds, that the crawler will wait for a download to complete

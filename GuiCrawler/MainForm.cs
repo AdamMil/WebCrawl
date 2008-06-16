@@ -635,9 +635,12 @@ public partial class MainForm : Form
 
   void OnCrawlStopped()
   {
-    updateTimer.Stop();
-    updateTimer.Dispose();
-    updateTimer = null;
+    if(updateTimer != null)
+    {
+      updateTimer.Stop();
+      updateTimer.Dispose();
+      updateTimer = null;
+    }
     UpdateCrawlerInfo();
 
     txtBaseUrls.Enabled = txtOutDir.Enabled = true;
@@ -900,7 +903,6 @@ public partial class MainForm : Form
   {
     crawler.Terminate(0);
     updateTimer.Stop();
-    updateTimer = null;
     status.Text = "Crawl aborted.";
     OnCrawlStopped();
   }
