@@ -411,6 +411,7 @@ namespace WebCrawl.Gui
       this.txtBaseUrls.Name = "txtBaseUrls";
       this.txtBaseUrls.Size = new System.Drawing.Size(305, 58);
       this.txtBaseUrls.TabIndex = 1;
+      this.txtBaseUrls.WordWrap = false;
       this.txtBaseUrls.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.txtBaseUrls.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -422,7 +423,7 @@ namespace WebCrawl.Gui
       lblBaseUrls.Name = "lblBaseUrls";
       lblBaseUrls.Size = new System.Drawing.Size(82, 26);
       lblBaseUrls.TabIndex = 0;
-      lblBaseUrls.Text = "Base Urls\n(one per line)";
+      lblBaseUrls.Text = "Base &Urls\n(one per line)";
       lblBaseUrls.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
       // chkGenerateErrorFiles
@@ -432,7 +433,7 @@ namespace WebCrawl.Gui
       this.chkGenerateErrorFiles.Name = "chkGenerateErrorFiles";
       this.chkGenerateErrorFiles.Size = new System.Drawing.Size(119, 17);
       this.chkGenerateErrorFiles.TabIndex = 17;
-      this.chkGenerateErrorFiles.Text = "Generate Error Files";
+      this.chkGenerateErrorFiles.Text = "Generate &Error Files";
       this.chkGenerateErrorFiles.UseVisualStyleBackColor = true;
       this.chkGenerateErrorFiles.CheckedChanged += new System.EventHandler(this.OnFormChanged);
       // 
@@ -443,7 +444,7 @@ namespace WebCrawl.Gui
       this.chkCookies.Name = "chkCookies";
       this.chkCookies.Size = new System.Drawing.Size(64, 17);
       this.chkCookies.TabIndex = 16;
-      this.chkCookies.Text = "Cookies";
+      this.chkCookies.Text = "&Cookies";
       this.chkCookies.UseVisualStyleBackColor = true;
       this.chkCookies.CheckedChanged += new System.EventHandler(this.OnFormChanged);
       // 
@@ -454,7 +455,7 @@ namespace WebCrawl.Gui
       this.chkLinkRewrite.Name = "chkLinkRewrite";
       this.chkLinkRewrite.Size = new System.Drawing.Size(93, 17);
       this.chkLinkRewrite.TabIndex = 15;
-      this.chkLinkRewrite.Text = "Link Rewriting";
+      this.chkLinkRewrite.Text = "Link &Rewriting";
       this.chkLinkRewrite.UseVisualStyleBackColor = true;
       this.chkLinkRewrite.CheckedChanged += new System.EventHandler(this.OnFormChanged);
       // 
@@ -513,7 +514,7 @@ namespace WebCrawl.Gui
       lblDownload.Name = "lblDownload";
       lblDownload.Size = new System.Drawing.Size(55, 13);
       lblDownload.TabIndex = 13;
-      lblDownload.Text = "Download";
+      lblDownload.Text = "&Download";
       lblDownload.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
       // cmbDomainNav
@@ -585,7 +586,7 @@ namespace WebCrawl.Gui
       browseOutDir.Name = "browseOutDir";
       browseOutDir.Size = new System.Drawing.Size(75, 20);
       browseOutDir.TabIndex = 4;
-      browseOutDir.Text = "Browse...";
+      browseOutDir.Text = "&Browse...";
       browseOutDir.UseVisualStyleBackColor = true;
       browseOutDir.Click += new System.EventHandler(this.browseOutDir_Click);
       // 
@@ -608,7 +609,7 @@ namespace WebCrawl.Gui
       lblOutDir.Name = "lblOutDir";
       lblOutDir.Size = new System.Drawing.Size(100, 13);
       lblOutDir.TabIndex = 2;
-      lblOutDir.Text = "Output Directory";
+      lblOutDir.Text = "&Output Directory";
       lblOutDir.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
       // advancedTab
@@ -689,6 +690,7 @@ namespace WebCrawl.Gui
       this.txtAdditionalUrls.Name = "txtAdditionalUrls";
       this.txtAdditionalUrls.Size = new System.Drawing.Size(328, 43);
       this.txtAdditionalUrls.TabIndex = 1;
+      this.txtAdditionalUrls.WordWrap = false;
       this.txtAdditionalUrls.TextChanged += new System.EventHandler(this.OnFormChanged);
       this.txtAdditionalUrls.KeyDown += new System.Windows.Forms.KeyEventHandler(this.text_KeyDown);
       // 
@@ -699,7 +701,7 @@ namespace WebCrawl.Gui
       lblAdditionalUrls.Name = "lblAdditionalUrls";
       lblAdditionalUrls.Size = new System.Drawing.Size(74, 26);
       lblAdditionalUrls.TabIndex = 0;
-      lblAdditionalUrls.Text = "Additional Urls\n(one per line)";
+      lblAdditionalUrls.Text = "Additional &Urls\n(one per line)";
       lblAdditionalUrls.TextAlign = System.Drawing.ContentAlignment.MiddleLeft;
       // 
       // chkClear
@@ -1356,7 +1358,7 @@ namespace WebCrawl.Gui
       this.downloads.Location = new System.Drawing.Point(0, 17);
       this.downloads.MultiSelect = false;
       this.downloads.Name = "downloads";
-      this.downloads.Size = new System.Drawing.Size(423, 101);
+      this.downloads.Size = new System.Drawing.Size(423, 112);
       this.downloads.TabIndex = 1;
       this.downloads.UseCompatibleStateImageBehavior = false;
       this.downloads.View = System.Windows.Forms.View.Details;
@@ -1568,8 +1570,7 @@ namespace WebCrawl.Gui
       this.MainMenuStrip = menuStrip;
       this.MinimumSize = new System.Drawing.Size(439, 370);
       this.Name = "MainForm";
-      this.Text = "WebCrawl 0.33 by Adam Milazzo";
-      this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.MainForm_FormClosing);
+      this.Text = "WebCrawl 0.34 by Adam Milazzo";
       menuStrip.ResumeLayout(false);
       menuStrip.PerformLayout();
       statusStrip.ResumeLayout(false);

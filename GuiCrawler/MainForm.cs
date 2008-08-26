@@ -13,7 +13,7 @@ namespace WebCrawl.Gui
 
 public partial class MainForm : Form
 {
-  const int ProjectVersion = 2;
+  const int ProjectVersion = 3;
 
   public MainForm()
   {
@@ -21,6 +21,12 @@ public partial class MainForm : Form
     InitializeItems();
 
     NewProject();
+  }
+
+  protected override void OnFormClosing(FormClosingEventArgs e)
+  {
+    base.OnFormClosing(e);
+    if(!e.Cancel && !NewProject()) e.Cancel = true;
   }
 
   #region ColumnComparer
@@ -89,6 +95,26 @@ public partial class MainForm : Form
   }
   #endregion
 
+  #region InputUri
+  class InputUri
+  {
+    public InputUri(string input)
+    {
+      int space = input.IndexOf(' ');
+
+      if(space == -1) Uri = new Uri(input, UriKind.Absolute);
+      else
+      {
+        Uri = new Uri(input.Substring(0, space), UriKind.Absolute);
+        PostData = input.Substring(space+1);
+      }
+    }
+
+    public readonly Uri Uri;
+    public readonly string PostData;
+  }
+  #endregion
+
   delegate void InvokeDelegate();
 
   const RegexOptions FilterOptions =
@@ -137,7 +163,7 @@ public partial class MainForm : Form
     extraUrls.Clear();
     foreach(string line in txtAdditionalUrls.Lines)
     {
-      if(!string.IsNullOrEmpty(line)) extraUrls.Add(new Uri(line));
+      if(!string.IsNullOrEmpty(line)) extraUrls.Add(new InputUri(line));
     }
     crawler.MaxFileSize = ParseSizeLimit(txtFileSize.Text);
     crawler.MaxQueryStringsPerFile = ParseLimit(txtQueryStrings.Text);
@@ -215,6 +241,7 @@ public partial class MainForm : Form
       if(result == DialogResult.Cancel || result == DialogResult.Yes && !SaveProject()) return false;
     }
 
+    if(crawler != null) crawler.Dispose();
     crawler         = null;
     extraUrls       = null;
     positiveFilters = negativeFilters = null;
@@ -229,7 +256,7 @@ public partial class MainForm : Form
     if(ProjectOpen && !CloseProject()) return false;
 
     crawler          = new Crawler();
-    extraUrls        = new List<Uri>();
+    extraUrls        = new List<InputUri>();
     positiveFilters  = new List<Filter>();
     negativeFilters  = new List<Filter>();
     changeFilters    = new List<ChangeFilter>();
@@ -264,7 +291,7 @@ public partial class MainForm : Form
         }
 
         int count = reader.ReadInt32();
-        while(count-- > 0) extraUrls.Add(new Uri(reader.ReadStringWithLength()));
+        while(count-- > 0) extraUrls.Add(new InputUri(reader.ReadStringWithLength()));
 
         count = reader.ReadInt32();
         while(count-- > 0) positiveFilters.Add(new Filter(reader.ReadStringWithLength()));
@@ -333,7 +360,7 @@ public partial class MainForm : Form
 
     // advanced setup page
     lines.Clear();
-    foreach(Uri uri in extraUrls) lines.Add(uri.AbsoluteUri);
+    foreach(InputUri r in extraUrls) lines.Add(r.Uri.AbsoluteUri + (r.PostData == null ? null : " "+r.PostData));
     txtAdditionalUrls.Lines = lines.ToArray();
 
     txtFileSize.Text = SizeLimitToString(crawler.MaxFileSize);
@@ -386,7 +413,10 @@ public partial class MainForm : Form
       writer.Write(ProjectVersion);
       
       writer.Write(extraUrls.Count);
-      foreach(Uri uri in extraUrls) writer.WriteStringWithLength(uri.AbsoluteUri);
+      foreach(InputUri r in extraUrls)
+      {
+        writer.WriteStringWithLength(r.Uri.AbsoluteUri + (r.PostData == null ? null : " "+r.PostData));
+      }
 
       writer.Write(positiveFilters.Count);
       foreach(Filter filter in positiveFilters) writer.WriteStringWithLength(filter.Pattern);
@@ -474,12 +504,12 @@ public partial class MainForm : Form
   {
     foreach(string line in txtBaseUrls.Lines)
     {
-      if(!ValidateUrl("base", line)) return false;
+      if(!ValidateUrl("base", line, false)) return false;
     }
 
     foreach(string line in txtAdditionalUrls.Lines)
     {
-      if(!ValidateUrl("additional", line)) return false;
+      if(!ValidateUrl("additional", line, true)) return false;
     }
 
     if(!string.IsNullOrEmpty(txtOutDir.Text))
@@ -502,7 +532,7 @@ public partial class MainForm : Form
            ValidateTimeLimit("Idle timeout", txtIdleTimeout.Text)          &&
            ValidateTimeLimit("Read timeout", txtReadTimeout.Text)          &&
            ValidateTimeLimit("Transfer timeout", txtTransferTimeout.Text)  &&
-           ValidateUrl("referrer", txtReferrer.Text);
+           ValidateUrl("referrer", txtReferrer.Text, false);
   }
 
   bool ValidateLimit(string name, string value)
@@ -547,13 +577,14 @@ public partial class MainForm : Form
     }
   }
 
-  bool ValidateUrl(string name, string url)
+  bool ValidateUrl(string name, string url, bool allowPostData)
   {
     if(!string.IsNullOrEmpty(url))
     {
       try
       {
-        new Uri(url, UriKind.Absolute);
+        if(allowPostData) new InputUri(url);
+        else new Uri(url, UriKind.Absolute);
       }
       catch(FormatException)
       {
@@ -823,11 +854,6 @@ public partial class MainForm : Form
     Close();
   }
 
-  void MainForm_FormClosing(object sender, FormClosingEventArgs e)
-  {
-    if(!NewProject()) e.Cancel = true;
-  }
-
   void openProjectMenuItem_Click(object sender, EventArgs e)
   {
     if(!Terminate()) return;
@@ -866,9 +892,10 @@ public partial class MainForm : Form
       crawler.ClearUris(true);
       if(enqueueBaseUrls)
       {
-        foreach(Uri baseUri in crawler.GetBaseUris()) crawler.EnqueueUri(baseUri, true);
+        foreach(Uri uri in crawler.GetBaseUris()) crawler.EnqueueUri(uri, true);
       }
-      foreach(Uri uri in extraUrls) crawler.EnqueueUri(uri, true);
+
+      foreach(InputUri resource in extraUrls) crawler.EnqueueUri(resource.Uri, resource.PostData, true);
 
       crawler.Start();
       status.Text = "Crawl started.";
@@ -1195,7 +1222,7 @@ public partial class MainForm : Form
   }
 
   Crawler crawler;
-  List<Uri> extraUrls;
+  List<InputUri> extraUrls;
   List<Filter> positiveFilters, negativeFilters;
   List<ChangeFilter> changeFilters, contentFilters;
   string saveFileName;

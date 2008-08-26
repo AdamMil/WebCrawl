@@ -196,9 +196,10 @@ public struct MimeOverride
 /// <summary>A structure representing an internet resource.</summary>
 public sealed class Resource
 {
-  internal Resource(Uri uri, Uri referrer, int depth, Crawler.LinkType type)
+  internal Resource(Uri uri, string postData, Uri referrer, int depth, Crawler.LinkType type)
   {
     this.uri      = uri;
+    this.postData = postData;
     this.referrer = referrer;
     this.depth    = depth;
     this.type     = type;
@@ -234,6 +235,14 @@ public sealed class Resource
   public string ContentType
   {
     get { return contentType; }
+  }
+
+  /// <summary>Gets the data to post to the URI, in application/x-www-form-urlencoded format, or null if no data is to
+  /// be posted.
+  /// </summary>
+  public string PostData
+  {
+    get { return postData; }
   }
 
   /// <summary>Gets the absolute URI of the resource.</summary>
@@ -302,13 +311,15 @@ public sealed class Resource
   internal string localPath, responseText, contentType;
   internal List<Resource> references;
   internal Encoding encoding;
-  Uri uri, referrer;
   internal HttpStatusCode responseCode;
   internal uint rewriteTag;
   internal int depth, failures;
   internal Status status;
   internal Crawler.RewriteStatus rewriteStatus;
   internal Crawler.LinkType type;
+
+  Uri uri, referrer;
+  string postData;
 }
 #endregion
 
@@ -685,7 +696,7 @@ public sealed class Crawler : IDisposable
     get { return rewriteLinks; }
     set
     {
-      if(value) InitializeRewriteThread();
+      if(value && running) InitializeRewriteThread();
       rewriteLinks = value;
     }
   }
@@ -801,11 +812,9 @@ public sealed class Crawler : IDisposable
   /// </remarks>
   public void AddBaseUri(Uri uri, bool enqueue, bool force)
   {
-    if(uri == null) throw new ArgumentNullException();
-    if(!uri.IsAbsoluteUri) throw new ArgumentNullException("The uri must be absolute.");
-
+    ValidateNewUri(uri, null);
     lock(baseUris) baseUris.Add(uri);
-    if(enqueue) EnqueueUri(uri, null, 0, LinkType.Link, force);
+    if(enqueue) EnqueueUri(uri, null, null, 0, LinkType.Link, force);
   }
 
   /// <summary>Removes all base URIs from the crawler.</summary>
@@ -1044,14 +1053,34 @@ public sealed class Crawler : IDisposable
   /// </summary>
   public void EnqueueUri(Uri uri)
   {
-    EnqueueUri(uri, true);
+    EnqueueUri(uri, null, true);
+  }
+
+  /// <summary>Adds a link to a resource to be downloaded. The link will be enqueued even if it's already been
+  /// enqueued.
+  /// </summary>
+  /// <param name="uri">The URI to add.</param>
+  /// <param name="postData">The data to post to the given URL, in application/x-www-form-urlencoded format.</param>
+  public void EnqueueUri(Uri uri, string postData)
+  {
+    EnqueueUri(uri, postData, true);
   }
 
   /// <summary>Adds a link to a resource to be downloaded.</summary>
   /// <param name="force">If true, the uri will be enqueued even if it's previously been enqueued.</param>
   public void EnqueueUri(Uri uri, bool force)
   {
-    EnqueueUri(CleanupInputUri(uri), null, 0, LinkType.Link, force);
+    EnqueueUri(uri, null, force);
+  }
+
+  /// <summary>Adds a link to a resource to be downloaded.</summary>
+  /// <param name="uri">The URI to add.</param>
+  /// <param name="postData">The data to post to the given URL, in application/x-www-form-urlencoded format.</param>
+  /// <param name="force">If true, the uri will be enqueued even if it's previously been enqueued.</param>
+  public void EnqueueUri(Uri uri, string postData, bool force)
+  {
+    ValidateNewUri(uri, postData);
+    EnqueueUri(CleanupInputUri(uri), postData, null, 0, LinkType.Link, force);
   }
 
   #region Mime overrides
@@ -1146,7 +1175,7 @@ public sealed class Crawler : IDisposable
     AddMimeOverride("pdf",   "application/pdf", true);
     AddMimeOverride("png",   "image/png", true);
     AddMimeOverride("ppt",   "application/mspowerpoint", true);
-    AddMimeOverride("qt",    "video/quicktime", true);
+    AddMimeOverride("qt",    "video/quicktime", false);
     AddMimeOverride("ra",    "audio/x-realaudio", true);
     AddMimeOverride("ram",   "audio/x-pn-realaudio", true);
     AddMimeOverride("rm",    "application/vnd.rn-realmedia", true);
@@ -1247,7 +1276,7 @@ public sealed class Crawler : IDisposable
     /// <summary>Gets an approximation of the current throughput of this connection thread.</summary>
     public int CurrentBytesPerSecond
     {
-      get { return IsIdle ? 0 : currentSpeed; } // TODO: this method of calculation is crap. it should be improved.
+      get { return IsIdle ? 0 : currentSpeed; } // TODO: this method of calculation should be improved.
     }
 
     /// <summary>Gets the <see cref="Resource"/> currently being downloaded, or null if no resource is being
@@ -1368,8 +1397,9 @@ public sealed class Crawler : IDisposable
         request = null;
       }
 
-      resourceUri = null;
-      resource    = null;
+      currentSpeed = 0;
+      resourceUri  = null;
+      resource     = null;
       resourcesToReference.Clear();
     }
 
@@ -1393,9 +1423,8 @@ public sealed class Crawler : IDisposable
       CleanupRequest();
       Disassociate();
 
-      currentSpeed = 0;
-      thread       = null;
-      shouldQuit   = false;
+      thread     = null;
+      shouldQuit = false;
     }
 
     /// <summary>Downloads the resources queued in the associated service until all have been downloaded, or the thread
@@ -1424,10 +1453,11 @@ public sealed class Crawler : IDisposable
         timer.Start();
 
         // if no link to the resource lower than the depth limit has been found, don't download it. however, don't
-        // subject external resources to this restriction, if we want them. i realize it's possible that a shallower
-        // link to it might be found later, but this may be the best we can do...
+        // subject external resources (if we want them) or form POSTs to this restriction. i realize it's possible that
+        // a shallower link to it might be found later, but this may be the best we can do...
         if(crawler.DepthLimit != Infinite && resource.Depth >= crawler.DepthLimit &&
-           (resource.type != LinkType.Resource || (crawler.Download & ResourceType.ExternalResources) == 0))
+           (resource.PostData != null ||
+            resource.type != LinkType.Resource || (crawler.Download & ResourceType.ExternalResources) == 0))
         {
           BeginRewritingToOriginalUrl(resource);
           continue;
@@ -1440,7 +1470,7 @@ public sealed class Crawler : IDisposable
           bool crawlerWantsEverything = (crawler.Download & ResourceType.TypeMask) == ResourceType.Everything;
           ResourceType resourceType = ResourceType.Unknown;
 
-          if(!crawlerWantsEverything)
+          if(!crawlerWantsEverything && resource.PostData == null)
           {
             // we need to determine whether we actually want to download this item
             resourceType = crawler.GuessResourceType(resource);
@@ -1454,7 +1484,8 @@ public sealed class Crawler : IDisposable
 
             // skip non-Html resources if we don't want them. we'll still need to download Html resources to scan them
             // for links
-            if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType)) continue;
+            if(resource.PostData == null && // except that we always obey post requests
+               resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType)) continue;
           }
 
           request = WebRequest.Create(resourceUri);
@@ -1465,7 +1496,7 @@ public sealed class Crawler : IDisposable
           {
             SetupHttpRequest(httpRequest);
 
-            if(!crawlerWantsEverything && resourceType == ResourceType.Unknown)
+            if(!crawlerWantsEverything && resourceType == ResourceType.Unknown && resource.PostData == null)
             {
               httpRequest.Method = "HEAD"; // use a HEAD request to determine the content type before downloading it
               httpResponse = (HttpWebResponse)httpRequest.GetResponse();
@@ -1501,6 +1532,15 @@ public sealed class Crawler : IDisposable
           crawler.OnProgress(resource, Status.DownloadStarted);
 
           request.Timeout = crawler.TransferTimeout == Infinite ? Timeout.Infinite : crawler.TransferTimeout*1000;
+
+          if(resource.PostData != null)
+          {
+            using(StreamWriter postWriter = new StreamWriter(request.GetRequestStream()))
+            {
+              postWriter.Write(resource.PostData);
+            }
+          }
+
           response = request.GetResponse();
 
           httpResponse = response as HttpWebResponse;
@@ -1697,7 +1737,7 @@ public sealed class Crawler : IDisposable
 
           long elapsedMs = timer.ElapsedMilliseconds;
           if(elapsedMs == 0) elapsedMs = 1; // prevent division by zero
-          currentSpeed = (int)(resource.BytesDownloaded*1000L / elapsedMs);
+          currentSpeed = (int)(resource.BytesDownloaded*1000 / elapsedMs);
         }
       }
       finally
@@ -1807,7 +1847,7 @@ public sealed class Crawler : IDisposable
       Uri uri = crawler.FilterUri(GetAbsoluteLinkUrl(baseUri, GetLinkMatchGroup(m, out type), decodeEntities));
       if(uri != null)
       {
-        try { crawler.EnqueueUri(uri, referrer, resource.Depth+1, type, false); }
+        try { crawler.EnqueueUri(uri, null, referrer, resource.Depth+1, type, false); }
         catch(UriFormatException) { }
       }
     }
@@ -1888,6 +1928,12 @@ public sealed class Crawler : IDisposable
       Uri referrer = resource.Referrer != null ? resource.Referrer : crawler.DefaultReferrer;
       if(referrer != null) httpRequest.Referer = referrer.AbsoluteUri;
 
+      if(resource.PostData != null)
+      {
+        httpRequest.Method      = "POST";
+        httpRequest.ContentType = "application/x-www-form-urlencoded";
+      }
+
       if(!string.IsNullOrEmpty(crawler.UserAgent))
       {
         httpRequest.UserAgent = crawler.UserAgent;
@@ -1924,7 +1970,7 @@ public sealed class Crawler : IDisposable
           string newUri = null;
           if(absUri != null)
           {
-            Resource resource = crawler.EnqueueUri(absUri, referrer, this.resource.Depth+1, type, false);
+            Resource resource = crawler.EnqueueUri(absUri, null, referrer, this.resource.Depth+1, type, false);
             if(resource != null)
             {
               lock(resource)
@@ -2070,7 +2116,7 @@ public sealed class Crawler : IDisposable
                                           link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
                                           applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
                                           object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          param\s+name=[""'](?:src|href|file|filename|data|movie5)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                                          param\s+name=[""'](?:src|href|file|filename|data|movie)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
                                           \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+)))",
                                     RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
                                     RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
@@ -2334,12 +2380,9 @@ public sealed class Crawler : IDisposable
     {
       if(request.CookieContainer == null) request.CookieContainer = new CookieContainer();
 
-      lock(this)
+      if(cookies != null)
       {
-        if(cookies != null)
-        {
-          request.CookieContainer.Add(request.RequestUri, cookies.GetCookies(request.RequestUri));
-        }
+        lock(this) request.CookieContainer.Add(request.RequestUri, cookies.GetCookies(request.RequestUri));
       }
     }
 
@@ -2805,12 +2848,12 @@ public sealed class Crawler : IDisposable
 
   /// <summary>Attempts to enqueue the given URI, given its referrer, depth, and link type.</summary>
   /// <returns>Returns the resource if the URI was enqueued, and null if not.</returns>
-  Resource EnqueueUri(Uri uri, Uri referrer, int depth, LinkType type, bool force)
+  Resource EnqueueUri(Uri uri, string postData, Uri referrer, int depth, LinkType type, bool force)
   {
     bool external;
     if(IsUriAllowed(uri, type, out external))
     {
-      Resource resource = new Resource(uri, referrer, depth, type);
+      Resource resource = new Resource(uri, postData, referrer, depth, type);
       Service service = GetService(uri);
       resource = service.Enqueue(resource, force);
       if(resource != null && running) CrawlService(service);
@@ -3168,6 +3211,24 @@ public sealed class Crawler : IDisposable
   void StartThread(ConnectionThread thread, Service service)
   {
     thread.Start(service);
+  }
+
+  /// <summary>Given a URI and post data for the URI, ensures that the URI can be handled by the crawler.</summary>
+  static void ValidateNewUri(Uri uri, string postData)
+  {
+    if(uri == null) throw new ArgumentNullException();
+    if(!uri.IsAbsoluteUri) throw new ArgumentNullException("The uri must be absolute.");
+
+    if(!string.Equals(uri.Scheme, "http", StringComparison.Ordinal) &&
+       !string.Equals(uri.Scheme, "https", StringComparison.Ordinal))
+    {
+      if(postData != null) throw new ArgumentException("The URI scheme "+uri.Scheme+" does not support post data.");
+
+      if(!string.Equals(uri.Scheme, "ftp", StringComparison.Ordinal))
+      {
+        throw new NotImplementedException("Unsupported URI scheme: " + uri.Scheme);
+      }
+    }
   }
 
   /// <summary>Determines whether the given resource type is one that the crawler is interested in downloading.</summary>
