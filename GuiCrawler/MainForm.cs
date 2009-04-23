@@ -634,14 +634,12 @@ public partial class MainForm : Form
     this.downloads.Items.Clear();
     foreach(Download download in downloads)
     {
-      long bytes = download.Resource.BytesDownloaded;
-      string bytesStr = bytes >= 1024*1024 ?
-        (bytes / (double)(1024*1024)).ToString("f2")+" mb" : (bytes / 1024.0).ToString("f2")+" kb";
-
       this.downloads.Items.Add(new ListViewItem(new string[] {
         download.Resource.Uri.AbsolutePath + download.Resource.Uri.Query,
         (download.CurrentSpeed / 1024.0).ToString("f1")+" kps",
-        bytesStr, download.Resource.ContentType, download.Resource.Uri.Authority }));
+        SizeToString(download.Resource.BytesDownloaded, false),
+        download.Resource.TotalSize == -1 ? "" : SizeToString(download.Resource.TotalSize, false),
+        download.Resource.ContentType, download.Resource.Uri.Authority }));
     }
     this.downloads.ResumeLayout();
   }
@@ -1163,6 +1161,11 @@ public partial class MainForm : Form
 
   static string SizeToString(long size)
   {
+    return SizeToString(size, true);
+  }
+
+  static string SizeToString(long size, bool showBytes)
+  {
     double dblSize = size;
     string suffix = null;
     if(size >= 1024*1024*1024)
@@ -1175,7 +1178,7 @@ public partial class MainForm : Form
       dblSize /= 1024*1024;
       suffix = " mb";
     }
-    else if(size >= 1024)
+    else if(size >= 1024 || !showBytes)
     {
       dblSize /= 1024;
       suffix = " kb";

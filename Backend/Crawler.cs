@@ -1170,6 +1170,7 @@ public sealed class Crawler : IDisposable
     AddMimeOverride("mov",   "video/quicktime", true);
     AddMimeOverride("mp2",   "audio/mpeg", false);
     AddMimeOverride("mp3",   "audio/mpeg3", true);
+    AddMimeOverride("mp3",   "audio/mpeg", true);
     AddMimeOverride("mpg",   "video/mpeg", false);
     AddMimeOverride("mpeg",  "video/mpeg", true);
     AddMimeOverride("pdf",   "application/pdf", true);
