@@ -6,15 +6,15 @@ namespace WebCrawl.Gui
 {
   static class Program
   {
-    /// <summary>
-    /// The main entry point for the application.
-    /// </summary>
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
       Application.EnableVisualStyles();
       Application.SetCompatibleTextRenderingDefault(false);
-      Application.Run(new MainForm());
+
+      MainForm form = new MainForm();
+      if(args.Length != 0) form.OpenProject(args[0]);
+      Application.Run(form);
     }
   }
 }
