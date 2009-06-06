@@ -9,7 +9,7 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyConfiguration("Release")]
 #endif
 [assembly: AssemblyProduct("WebCrawl")]
-[assembly: AssemblyCopyright("Copyright © Adam Milazzo 2006-2008")]
+[assembly: AssemblyCopyright("Copyright © Adam Milazzo 2006-2009")]
 
 [assembly: ComVisible(false)]
 
