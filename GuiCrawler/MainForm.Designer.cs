@@ -1578,7 +1578,7 @@ namespace WebCrawl.Gui
       this.MainMenuStrip = menuStrip;
       this.MinimumSize = new System.Drawing.Size(474, 370);
       this.Name = "MainForm";
-      this.Text = "WebCrawl 0.37 by Adam Milazzo";
+      this.Text = "WebCrawl 0.38 by Adam Milazzo";
       menuStrip.ResumeLayout(false);
       menuStrip.PerformLayout();
       statusStrip.ResumeLayout(false);

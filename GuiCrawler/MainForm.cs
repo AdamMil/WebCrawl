@@ -251,6 +251,26 @@ public partial class MainForm : Form
     return true;
   }
 
+  bool CreateDownloadDirectory()
+  {
+    if(!Directory.Exists(crawler.BaseDirectory))
+    {
+      if(MessageBox.Show("The download directory does not exist. Do you want to create it now?",
+                         "Create download directory?", MessageBoxButtons.YesNo, MessageBoxIcon.Question)
+           == DialogResult.Yes)
+      {
+        try { Directory.CreateDirectory(crawler.BaseDirectory); }
+        catch { return false; }
+      }
+      else
+      {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
   bool NewProject()
   {
     if(ProjectOpen && !CloseProject()) return false;
@@ -273,7 +293,7 @@ public partial class MainForm : Form
     return true;
   }
 
-  void OpenProject(string fileName)
+  public void OpenProject(string fileName)
   {
     if(!NewProject()) return;
 
@@ -881,7 +901,7 @@ public partial class MainForm : Form
 
   void startCrawlingMenuItem_Click(object sender, EventArgs e)
   {
-    if(startCrawlingMenuItem.Enabled && TryApplyChanges("starting the crawl"))
+    if(startCrawlingMenuItem.Enabled && TryApplyChanges("starting the crawl") && CreateDownloadDirectory())
     {
       if(clearDownloadDir) ClearDownloadDirectory();
 
