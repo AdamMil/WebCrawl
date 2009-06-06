@@ -55,16 +55,16 @@ public enum DomainNavigation
 /// to allow multiple types of resources to be downloaded.
 /// </summary>
 [Flags]
-public enum ResourceType
+public enum DownloadFlags
 {
   /// <summary>A value used internally to indicate that the type of a file is unknown.</summary>
   Unknown=0,
-  /// <summary>Web pages will be downloaded.</summary>
+  /// <summary>Web pages and necessary supporting files like CSS and javascript will be downloaded.</summary>
   Html=1,
   /// <summary>Non-web resources, such as images, movies, etc. will be downloaded.</summary>
   NonHtml=2,
   /// <summary>A mask that can be applied to extract the types of files to be downloaded.</summary>
-  TypeMask=Everything,
+  TypeMask=Everything, // this goes before Everything so that ResourceType.ToString() prints "Everything" rather than "TypeMask"
   /// <summary>All resources will be downloaded.</summary>
   Everything=Html|NonHtml,
   /// <summary>Web pages will be downloaded before other resources.</summary>
@@ -76,7 +76,7 @@ public enum ResourceType
   /// <summary>Supporting non-web resources will be downloaded, even if the crawler is not normally allowed to visit
   /// them (eg, if they're on another domain and the crawler is limited to the current domain).
   /// </summary>
-  ExternalResources=16
+  ExternalResources=16,
 }
 
 /// <summary>An enumeration used to indicate the current status of a <see cref="Resource"/>.</summary>
@@ -101,6 +101,25 @@ public enum Status
   /// </summary>
   FatalErrorOccurred
 }
+
+/// <summary>An enumeration used to indicate the type of content contained within a file.</summary>
+public enum ResourceType
+{
+  /// <summary>The contents of the file are unknown.</summary>
+  Unknown,
+  /// <summary>The file contains HTML.</summary>
+  Html,
+  /// <summary>The file contains CSS.</summary>
+  Css,
+  /// <summary>The file contains Javascript.</summary>
+  Javascript,
+  /// <summary>The file contains VBScript.</summary>
+  VBScript,
+  /// <summary>The file is treated as an opaque binary. It is assumed, for now, that all non-html types are lumped into
+  /// Binary.
+  /// </summary>
+  Binary
+}
 #endregion
 
 #region Delegates
@@ -109,9 +128,8 @@ public enum Status
 /// <param name="mimeType">The MIME type of the resource. Note that this is not completely reliable, since it may be
 /// misreported by the web server.
 /// </param>
-/// <param name="resourceType">The resource type of the file, either <see cref="Download.Html"/> or
-/// <see cref="Download.NonHtml"/>. If <see cref="Download.Html"/>, the file will be scanned for links to other
-/// resources. Note that this is not completely reliable, since it's based in part on the MIME type, which may be
+/// <param name="resourceType">The resource type of the file, one of the <see cref="ResourceType"/> values.
+/// Note that this is not completely reliable, since it's based in part on the MIME type, which may be
 /// misreported by the server, and/or the file extension, which may be misleading.
 /// </param>
 /// <param name="contentFileName">The path to a file on disk containing the content. If the content is to be changed,
@@ -468,10 +486,10 @@ public sealed class Crawler : IDisposable
   /// <summary>Gets or sets a value that controls which types of resources should be downloaded, and how they should
   /// be prioritized.
   /// </summary>
-  /// <remarks>The default is <see cref="Backend.Download.Everything"/> |
-  /// <see cref="Backend.Download.ExternalResources"/>.
+  /// <remarks>The default is <see cref="Backend.DownloadFlags.Everything"/> |
+  /// <see cref="Backend.DownloadFlags.ExternalResources"/>.
   /// </remarks>
-  public ResourceType Download
+  public DownloadFlags Download
   {
     get { return download; }
     set { download = value; }
@@ -886,7 +904,7 @@ public sealed class Crawler : IDisposable
     DepthLimit              = reader.ReadInt32();
     DirectoryNavigation     = (DirectoryNavigation)reader.ReadInt32();
     DomainNavigation        = (DomainNavigation)reader.ReadInt32();
-    Download                = (ResourceType)reader.ReadInt32();
+    Download                = (DownloadFlags)reader.ReadInt32();
     GenerateErrorFiles      = reader.ReadBool();
     MaxConnections          = reader.ReadInt32();
     MaxConnectionsPerServer = reader.ReadInt32();
@@ -1458,7 +1476,7 @@ public sealed class Crawler : IDisposable
         // a shallower link to it might be found later, but this may be the best we can do...
         if(crawler.DepthLimit != Infinite && resource.Depth >= crawler.DepthLimit &&
            (resource.PostData != null ||
-            resource.type != LinkType.Resource || (crawler.Download & ResourceType.ExternalResources) == 0))
+            resource.type != LinkType.Resource || (crawler.Download & DownloadFlags.ExternalResources) == 0))
         {
           BeginRewritingToOriginalUrl(resource);
           continue;
@@ -1468,7 +1486,7 @@ public sealed class Crawler : IDisposable
         resourceUri = resource.Uri;
         try
         {
-          bool crawlerWantsEverything = (crawler.Download & ResourceType.TypeMask) == ResourceType.Everything;
+          bool crawlerWantsEverything = (crawler.Download & DownloadFlags.TypeMask) == DownloadFlags.Everything;
           ResourceType resourceType = ResourceType.Unknown;
 
           if(!crawlerWantsEverything && resource.PostData == null)
@@ -1480,13 +1498,13 @@ public sealed class Crawler : IDisposable
             if(resourceType == ResourceType.Unknown &&
                string.Equals(resourceUri.Scheme, Uri.UriSchemeFtp, StringComparison.Ordinal))
             {
-              resourceType = ResourceType.NonHtml;
+              resourceType = ResourceType.Binary;
             }
 
             // skip non-Html resources if we don't want them. we'll still need to download Html resources to scan them
             // for links
             if(resource.PostData == null && // except that we always obey post requests
-               resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType)) continue;
+               resourceType == ResourceType.Binary && !crawler.WantResource(resourceType)) continue;
           }
 
           request = WebRequest.Create(resourceUri);
@@ -1509,7 +1527,7 @@ public sealed class Crawler : IDisposable
 
               // if it's not HTML and we don't want it, go to the next resource. we still need to download HTML to find
               // the links.
-              if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType))
+              if(resourceType == ResourceType.Binary && !crawler.WantResource(resourceType))
               {
                 BeginRewritingToOriginalUrl(resource);
                 continue;
@@ -1554,7 +1572,7 @@ public sealed class Crawler : IDisposable
             resourceType = Crawler.GetResourceType(resource.ContentType);
             // if it's not HTML and we don't want it, go to the next resource. we still need to download HTML to find
             // the links.
-            if(resourceType == ResourceType.NonHtml && !crawler.WantResource(resourceType))
+            if(resourceType == ResourceType.Binary && !crawler.WantResource(resourceType))
             {
               BeginRewritingToOriginalUrl(resource);
               goto finished;
@@ -1580,7 +1598,7 @@ public sealed class Crawler : IDisposable
           else if(response is FtpWebResponse)
           {
             resource.responseText = ((FtpWebResponse)response).StatusDescription;
-            resource.contentType  = resourceType == ResourceType.Html ? "text/html" : "application/octet-stream";
+            resource.contentType  = GetMimeType(resourceType);
           }
 
           // at this point, we know that we're going to download the data, so create the file to hold it
@@ -1589,7 +1607,7 @@ public sealed class Crawler : IDisposable
           {                     // this can happen for a page with too many different query strings
             BeginRewritingToOriginalUrl(resource);
             goto finished;
-          }                                          
+          }
 
           FileStream outFile = new FileStream(localPath, FileMode.Create, FileAccess.Write);
           resource.size = response.ContentLength;
@@ -1597,58 +1615,61 @@ public sealed class Crawler : IDisposable
           CopyStream(response.GetResponseStream(), outFile, timer);
           crawler.OnResourceTransferred(resource);
 
-          resource.encoding = resourceType == ResourceType.Html ? GetEncoding(httpResponse) : null;
+          resource.encoding = resourceType != ResourceType.Binary ? GetEncoding(httpResponse) : null;
 
           // allow the user to filter the content
           crawler.DoFilterContent(resourceUri, resource.ContentType, resourceType, resource.encoding, localPath);
 
-          if(resourceType == ResourceType.Html)
+          if(resourceType != ResourceType.Binary)
           {
-            string html;
+            string content;
 
             using(StreamReader sr = new StreamReader(localPath, resource.encoding))
             {
-              html = sr.ReadToEnd();
+              content = sr.ReadToEnd();
             }
 
-            // if the page has a content type meta tag, and it's different from what the server reported,
-            // reload the file if we can.
-            Match contentTypeMatch = metaRe.Match(html);
-            if(contentTypeMatch.Success)
+            // if an HTML document has a content type meta tag, and it's different from what the server reported,
+            // reload the file if we can
+            if(resourceType == ResourceType.Html)
             {
-              Encoding rightEncoding = null;
-              try
+              Match contentTypeMatch = metaRe.Match(content);
+              if(contentTypeMatch.Success)
               {
-                rightEncoding = Encoding.GetEncoding(contentTypeMatch.Groups["charset"].Value);
-                if(!string.Equals(rightEncoding.WebName, resource.encoding.WebName, StringComparison.OrdinalIgnoreCase) &&
-                   !string.Equals(rightEncoding.WebName, "us-ascii", StringComparison.OrdinalIgnoreCase))
+                Encoding rightEncoding = null;
+                try
                 {
-                  resource.encoding = rightEncoding;
-                  using(StreamReader sr = new StreamReader(localPath, resource.encoding))
+                  rightEncoding = Encoding.GetEncoding(contentTypeMatch.Groups["charset"].Value);
+                  if(!string.Equals(rightEncoding.WebName, resource.encoding.WebName, StringComparison.OrdinalIgnoreCase) &&
+                     !string.Equals(rightEncoding.WebName, "us-ascii", StringComparison.OrdinalIgnoreCase))
                   {
-                    html = sr.ReadToEnd();
+                    resource.encoding = rightEncoding;
+                    using(StreamReader sr = new StreamReader(localPath, resource.encoding))
+                    {
+                      content = sr.ReadToEnd();
+                    }
                   }
                 }
+                catch(ArgumentException) { }
               }
-              catch(ArgumentException) { }
             }
 
-            if(!crawler.RewriteLinks || !crawler.WantResource(ResourceType.Html))
+            if(!crawler.RewriteLinks || !crawler.WantResource(resourceType))
             {
-              ScanForLinks(html);
+              ScanForLinks(content, resourceType);
             }
             else
             {
-              html = ScanForAndRewriteLinks(html, Path.GetDirectoryName(localPath));
+              content = ScanForAndRewriteLinks(content, resourceType, Path.GetDirectoryName(localPath));
               using(FileStream file = new FileStream(localPath, FileMode.Create,
                                                      FileAccess.Write, FileShare.Read))
               {
-                byte[] bytes = resource.encoding.GetBytes(html);
+                byte[] bytes = resource.encoding.GetBytes(content);
                 file.Write(bytes, 0, bytes.Length);
               }
             }
 
-            if(!crawler.WantResource(ResourceType.Html)) // if we didn't actually want it, delete it
+            if(!crawler.WantResource(resourceType)) // if we didn't actually want it, delete it
             {
               service.FreeLocalFileName(resource.Uri, localPath);
               localPath = null;
@@ -1853,68 +1874,89 @@ public sealed class Crawler : IDisposable
       }
     }
 
-    /// <summary>Scans an HTML document for links, and processes each link found.</summary>
-    // TODO: scan inside CSS files (anything coming from a CSS link or having a text/css mime type).
-    // scan inside javascript too.
-    void ScanForLinks(string html)
+    /// <summary>Scans a document for links, and processes each link found.</summary>
+    void ScanForLinks(string content, ResourceType resourceType)
     {
       Uri baseUri = resourceUri; // use the resource uri as the base uri by default
 
-      Match m = baseRe.Match(html); // but if the document specifies a different base Uri, use it.
-      if(m.Success)
+      if(resourceType == ResourceType.Html)
       {
-        try { baseUri = new Uri(m.Value); }
-        catch(UriFormatException) { }
-      }
-      
-      m = linkRe.Match(html); // now look for links in the HTML
-      while(m.Success)
-      {
-        HandleLinkMatch(baseUri, resourceUri, m, true);
-        m = m.NextMatch();
-      }
-      
-      m = styleRe.Match(html); // now look for style blocks
-      while(m.Success)
-      {
-        Match linkMatch = styleLinkRe.Match(m.Groups["css"].Value); // and links within the style blocks
-        while(linkMatch.Success)
+        Match m = baseRe.Match(content); // but if the document specifies a different base Uri, use it.
+        if(m.Success)
         {
-          HandleLinkMatch(baseUri, resourceUri, linkMatch, false);
-          linkMatch = linkMatch.NextMatch();
+          try { baseUri = new Uri(m.Value); }
+          catch(UriFormatException) { }
         }
-        
-        m = m.NextMatch();
+
+        m = htmlLinkRe.Match(content); // now look for links in the HTML
+        while(m.Success)
+        {
+          HandleLinkMatch(baseUri, resourceUri, m, true);
+          m = m.NextMatch();
+        }
+
+        m = styleRe.Match(content); // now look for style blocks
+        while(m.Success)
+        {
+          Match linkMatch = cssLinkRe.Match(m.Groups["css"].Value); // and links within the style blocks
+          while(linkMatch.Success)
+          {
+            HandleLinkMatch(baseUri, resourceUri, linkMatch, false);
+            linkMatch = linkMatch.NextMatch();
+          }
+
+          m = m.NextMatch();
+        }
+      }
+      else if(resourceType == ResourceType.Css)
+      {
+        Match m = cssLinkRe.Match(content); // search for links within CSS
+        while(m.Success)
+        {
+          HandleLinkMatch(baseUri, resourceUri, m, false);
+          m = m.NextMatch();
+        }
       }
     }
     
-    /// <summary>Scans an HTML document for links, and processes each link found, replacing the link text with a
+    /// <summary>Scans a document for links, and processes each link found, replacing the link text with a
     /// reference to the locally downloaded resource.
     /// </summary>
-    /// <param name="html">The HTML document.</param>
-    /// <param name="localDir">The directory in which the HTML document is stored. This is used to calculate the
+    /// <param name="content">The content of the document.</param>
+    /// <param name="resourceType">The type of content contained within the document.</param>
+    /// <param name="localDir">The directory in which the document is stored. This is used to calculate the
     /// relative path used to replace links.
     /// </param>
-    /// <returns>Returns the new HTML document, with links replaced.</returns>
-    string ScanForAndRewriteLinks(string html, string localDir)
+    /// <returns>Returns the new document, with links replaced.</returns>
+    string ScanForAndRewriteLinks(string content, ResourceType resourceType, string localDir)
     {
       Uri baseUri = resourceUri; // use the resource uri as the base uri by default
-      
-      Match m = baseRe.Match(html);
-      if(m.Success) // but if the document specifies a different base Uri, use it.
+
+      MatchEvaluator cssReplacer =
+          delegate(Match match) { return RewriteLink(match, baseUri, resourceUri, localDir, false); };
+
+      if(resourceType == ResourceType.Html)
       {
-        try { baseUri = new Uri(m.Value); }
-        catch(UriFormatException) { }
-        html = baseRe.Replace(html, "."); // replace the base with '.'
+        Match m = baseRe.Match(content);
+        if(m.Success) // but if the document specifies a different base Uri, use it.
+        {
+          try { baseUri = new Uri(m.Value); }
+          catch(UriFormatException) { }
+          content = baseRe.Replace(content, "."); // replace the base with '.'
+        }
+
+        MatchEvaluator htmlReplacer =
+          delegate(Match match) { return RewriteLink(match, baseUri, resourceUri, localDir, true); };
+
+        content = htmlLinkRe.Replace(content, htmlReplacer);
+        content = styleRe.Replace(content, delegate(Match match) { return cssLinkRe.Replace(match.Value, cssReplacer); });
+      }
+      else if(resourceType == ResourceType.Css)
+      {
+        content = cssLinkRe.Replace(content, cssReplacer);
       }
 
-      MatchEvaluator htmlReplacer =
-        delegate(Match match) { return RewriteHtmlLink(match, baseUri, resourceUri, localDir, true); };
-      MatchEvaluator cssReplacer =
-        delegate(Match match) { return RewriteHtmlLink(match, baseUri, resourceUri, localDir, false); };
-      html = linkRe.Replace(html, htmlReplacer);
-      html = styleRe.Replace(html, delegate(Match match) { return styleLinkRe.Replace(match.Value, cssReplacer); });
-      return html;
+      return content;
     }
 
     /// <summary>Prepares an <see cref="HttpWebRequest"/> for issuance, by setting its various properties, such as
@@ -1956,7 +1998,7 @@ public sealed class Crawler : IDisposable
     /// <param name="localDir">The directory in which the resource containing the link is saved.</param>
     /// <param name="decodeEntities">If true, HTML entities will be decoded in the link text before it's processed.</param>
     /// <returns>Returns the new link text.</returns>
-    string RewriteHtmlLink(Match m, Uri baseUri, Uri referrer, string localDir, bool decodeEntities)
+    string RewriteLink(Match m, Uri baseUri, Uri referrer, string localDir, bool decodeEntities)
     {
       try
       {
@@ -2062,6 +2104,19 @@ public sealed class Crawler : IDisposable
       return endPos == -1 ? contentType : contentType.Substring(0, endPos);
     }
 
+    /// <summary>Converts a <see cref="ResourceType"/> into a normalized MIME type.</summary>
+    static string GetMimeType(ResourceType resourceType)
+    {
+      switch(resourceType)
+      {
+        case ResourceType.Css: return "text/css";
+        case ResourceType.Html: return "text/html";
+        case ResourceType.Javascript: return "text/javascript";
+        case ResourceType.VBScript: return "text/vbscript";
+        default: return "application/octet-stream";
+      }
+    }
+
     /// <summary>Returns true if the exception represents an error that is not likely to go away if the download is
     /// retried.
     /// </summary>
@@ -2107,36 +2162,41 @@ public sealed class Crawler : IDisposable
       return false;
     }
 
+    const RegexOptions BaseRegexOptions = RegexOptions.Compiled | RegexOptions.CultureInvariant |
+                                          RegexOptions.IgnoreCase | RegexOptions.Singleline;
+    
     /// <summary>Matches BASE tags in HTML.</summary>
-    static Regex baseRe = new Regex(@"(?<=<base\s[^>]*href\s*=\s*""?)[^"">]+", RegexOptions.Compiled |
-                                    RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    static readonly Regex baseRe = new Regex(@"(?<=<base\s[^>]*href\s*=\s*""?)[^"">]+", BaseRegexOptions);
+
     /// <summary>Matches links in HTML.</summary>
-    static Regex linkRe = new Regex(@"<(?:a\b[^>]*?\bhref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
-                                          (?:img|script|embed)\b[^>]*?\bsrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
-                                          link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          param\s+name=[""'](?:src|href|file|filename|data|movie)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
-                                          \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+)))",
-                                    RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
-                                    RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
+    static readonly Regex htmlLinkRe =
+      new Regex(@"<(?:a\b[^>]*?\bhref\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
+                   (?:img|script|embed)\b[^>]*?\bsrc\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                   i?frame\b[^>]*?\bsrc\s*=\s*(?:""(?<link>[^"">]+)|'(?<link>[^'>]+)|(?<link>[^>\s]+))|
+                   link\b[^>]*?\bhref\s*=\s*(?:""(?<resLink>[^"">]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                   applet\b[^>]*?\b(?:code|object)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                   object\b[^>]*?\b(?:data|codebase)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                   param\s+name=[""'](?:src|href|file|filename|data|movie)[""']\s+value=(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+))|
+                   \w+\b[^>]+?\b(?:background|bgimage)\s*=\s*(?:""(?<resLink>[^""]+)|'(?<resLink>[^'>]+)|(?<resLink>[^>\s]+)))",
+                BaseRegexOptions | RegexOptions.IgnorePatternWhitespace);
+    
     /// <summary>Matches STYLE tags in HTML.</summary>
-    static Regex styleRe = new Regex(@"<style(?:\s[^>]*)?>(?<css>.*?)</style>|<[^>]+\bstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
-                                     RegexOptions.Compiled | RegexOptions.IgnoreCase |
-                                     RegexOptions.CultureInvariant | RegexOptions.Singleline);
+    static readonly Regex styleRe =
+      new Regex(@"<style(?:\s[^>]*)?>(?<css>.*?)</style>|<[^>]+\bstyle\s*=\s*(?:""(?<css>[^"">]+)|'(?<css>[^'>]+))",
+                BaseRegexOptions);
+    
     /// <summary>Matches SCRIPT tags in HTML.</summary>
-    static Regex scriptRe = new Regex(@"<script(?:\s[^>]*)?>(.*?)</script>", RegexOptions.Compiled | RegexOptions.IgnoreCase |
-                                      RegexOptions.CultureInvariant | RegexOptions.Singleline);
-    /// <summary>Matches links in CSS.</summary>
-    static Regex styleLinkRe = new Regex(@"@import ""(?<resLink>[^""]+)|url\(['""]?(?<resLink>[^)]+?)['""]?\)",
-                                         RegexOptions.Compiled | RegexOptions.CultureInvariant |
-                                         RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    static readonly Regex scriptRe = new Regex(@"<script(?:\s[^>]*)?>(.*?)</script>", BaseRegexOptions);
+    
     /// <summary>Matches META tags that set the content type.</summary>
-    static Regex metaRe = new Regex(@"<meta\b[^>]*?\b(?:http-equiv=""content-type""[^>]*?\bcontent=""[^""]*?charset=(?<charset>[\w-]+)""|
-                                                        content=""[^""]*?charset=(?<charset>[\w-]+)""[^>]*?\bhttp-equiv=""content-type"")",
-                                    RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase |
-                                    RegexOptions.IgnorePatternWhitespace | RegexOptions.Singleline);
+    static readonly Regex metaRe =
+      new Regex(@"<meta\b[^>]*?\b(?:http-equiv=""content-type""[^>]*?\bcontent=""[^""]*?charset=(?<charset>[\w-]+)""|
+                                    content=""[^""]*?charset=(?<charset>[\w-]+)""[^>]*?\bhttp-equiv=""content-type"")",
+                BaseRegexOptions | RegexOptions.IgnorePatternWhitespace);
+
+    /// <summary>Matches links in CSS.</summary>
+    static readonly Regex cssLinkRe =
+      new Regex(@"@import ""(?<resLink>[^""]+)|url\(['""]?(?<resLink>[^)]+?)['""]?\)", BaseRegexOptions);
   }
   #endregion
 
@@ -2292,7 +2352,7 @@ public sealed class Crawler : IDisposable
         }
         else
         {
-          resource = (crawler.Download & ResourceType.PrioritizeNonHtml) != 0 ?
+          resource = (crawler.Download & DownloadFlags.PrioritizeNonHtml) != 0 ?
             resources.RemoveLast() : resources.RemoveFirst();
           // if we're not rewriting links, then we don't need to keep the resource class around
           if(!crawler.RewriteLinks) queued[MakeKey(resource.Uri)] = null;
@@ -2446,8 +2506,8 @@ public sealed class Crawler : IDisposable
     /// <summary>Adds the given resource to the front or back of the queue depending on its apparent resource type.</summary>
     void EnqueueCore(Resource resource)
     {
-      if(crawler.GuessResourceType(resource) == ResourceType.Html) resources.Insert(0, resource);
-      else resources.Add(resource);
+      if(crawler.GuessResourceType(resource) == ResourceType.Binary) resources.Add(resource);
+      else resources.Insert(0, resource);
     }
 
     /// <summary>Given a path below the service base URI, finds a filename to store the resources associated with that
@@ -2508,10 +2568,22 @@ public sealed class Crawler : IDisposable
       if(string.IsNullOrEmpty(extension))
       {
         extension = Path.GetExtension(path);
-        if(type == LinkType.Link &&
-           (string.IsNullOrEmpty(extension) || crawler.GuessResourceType(extension) == ResourceType.Html))
+        if(type == LinkType.Link)
         {
-          extension = ".html";
+          if(string.IsNullOrEmpty(extension))
+          {
+            extension = ".html";
+          }
+          else
+          {
+            switch(crawler.GuessResourceType(extension)) // normalize the extensions of known resource types
+            {
+              case ResourceType.Css: extension = ".css"; break;
+              case ResourceType.Html: extension = ".html"; break; // convert .asp, .jsp, .aspx, etc. to .html
+              case ResourceType.Javascript: extension = ".js"; break;
+              case ResourceType.VBScript: extension = ".vb"; break;
+            }
+          }
         }
       }
 
@@ -2952,11 +3024,32 @@ public sealed class Crawler : IDisposable
   /// <summary>Given a MIME type of a document, returns its resource type.</summary>
   static ResourceType GetResourceType(string mimeType)
   {
-    bool isHtml = string.Equals(mimeType, "text/html",  StringComparison.OrdinalIgnoreCase) ||
-                  string.Equals(mimeType, "application/xhtml+xml", StringComparison.OrdinalIgnoreCase) ||
-                  string.Equals(mimeType, "text/xhtml", StringComparison.OrdinalIgnoreCase) || // incorrect but in use
-                  string.Equals(mimeType, "text/xml", StringComparison.OrdinalIgnoreCase); // incorrect but in use
-    return isHtml ? ResourceType.Html : ResourceType.NonHtml;
+    mimeType = mimeType.ToLowerInvariant();
+    if(string.Equals(mimeType, "text/html", StringComparison.Ordinal) ||
+       string.Equals(mimeType, "application/xhtml+xml", StringComparison.Ordinal) ||
+       string.Equals(mimeType, "text/xhtml", StringComparison.Ordinal) || // incorrect but in use
+       string.Equals(mimeType, "text/xml", StringComparison.Ordinal))     // incorrect but in use
+    {
+      return ResourceType.Html;
+    }
+    else if(string.Equals(mimeType, "text/css", StringComparison.Ordinal))
+    {
+      return ResourceType.Css;
+    }
+    else if(string.Equals(mimeType, "text/javascript", StringComparison.Ordinal) ||
+            string.Equals(mimeType, "application/x-javascript", StringComparison.Ordinal) ||
+            string.Equals(mimeType, "text/ecmascript", StringComparison.Ordinal))
+    {
+      return ResourceType.Javascript;
+    }
+    else if(string.Equals(mimeType, "text/vbscript", StringComparison.Ordinal))
+    {
+      return ResourceType.VBScript;
+    }
+    else
+    {
+      return ResourceType.Binary;
+    }
   }
 
   /// <summary>Given a resource's URI, attempts to guess the resource type based on its file extension.</summary>
@@ -3024,8 +3117,8 @@ public sealed class Crawler : IDisposable
     }
 
     // skip non-html files if we aren't downloading them
-    ResourceType resourceType = type != LinkType.Link ? ResourceType.NonHtml : GuessResourceType(uri);
-    if(resourceType == ResourceType.NonHtml && (Download & ResourceType.NonHtml) == 0)
+    ResourceType resourceType = type != LinkType.Link ? ResourceType.Binary : GuessResourceType(uri);
+    if(resourceType == ResourceType.Binary && (Download & DownloadFlags.NonHtml) == 0)
     {
       return false;
     }
@@ -3066,7 +3159,7 @@ public sealed class Crawler : IDisposable
     isExternal = true; // if we got here, it's an external link (outside all base uris)
 
     // it's external, but if it's a resource of an internal file, then it's OK
-    return type != LinkType.Link && (download & ResourceType.ExternalResources) != 0;
+    return type != LinkType.Link && (download & DownloadFlags.ExternalResources) != 0;
   }
 
   /// <summary>Issues a progress report for the given error.</summary>
@@ -3235,8 +3328,9 @@ public sealed class Crawler : IDisposable
   /// <summary>Determines whether the given resource type is one that the crawler is interested in downloading.</summary>
   bool WantResource(ResourceType resourceType)
   {
-    Debug.Assert(resourceType == ResourceType.Html || resourceType == ResourceType.NonHtml);
-    return (download & resourceType) != 0;
+    if(resourceType == ResourceType.Unknown) throw new ArgumentException();
+    DownloadFlags flags = resourceType == ResourceType.Binary ? DownloadFlags.NonHtml : DownloadFlags.Html;
+    return (Download & flags) != 0;
   }
 
   long maxSize = 50*1024*1024, bytesDownloaded;
@@ -3274,7 +3368,7 @@ public sealed class Crawler : IDisposable
   /// <summary>The allowed domain navigation.</summary>
   DomainNavigation domainNav = DomainNavigation.SameHostName;
   /// <summary>The types of resources the crawler is interested in downloading, and their priorities.</summary>
-  ResourceType download = ResourceType.Everything | ResourceType.ExternalResources;
+  DownloadFlags download = DownloadFlags.Everything | DownloadFlags.ExternalResources;
   bool rewriteLinks = true, useCookies = true, errorFiles = true, passiveFtp = true, caseSensitive=true, disposed,
        running, baseDirInitialized, terminating;
 

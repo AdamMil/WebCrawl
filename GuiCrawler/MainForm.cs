@@ -148,12 +148,12 @@ public partial class MainForm : Form
     crawler.DomainNavigation = (DomainNavigation)cmbDomainNav.SelectedItem;
     crawler.MaxConnections = ParseLimit(txtMaxConnections.Text);
     crawler.MaxConnectionsPerServer = ParseLimit(txtConnsPerServer.Text);
-    ResourceType want = 0;
-    if(lstDownload.GetItemChecked(0)) want |= ResourceType.Html;
-    if(lstDownload.GetItemChecked(1)) want |= ResourceType.NonHtml;
-    if(lstDownload.GetItemChecked(2)) want |= ResourceType.ExternalResources;
-    if(lstDownload.GetItemChecked(3)) want |= ResourceType.PrioritizeHtml;
-    else if(lstDownload.GetItemChecked(4)) want |= ResourceType.PrioritizeNonHtml;
+    DownloadFlags want = 0;
+    if(lstDownload.GetItemChecked(0)) want |= DownloadFlags.Html;
+    if(lstDownload.GetItemChecked(1)) want |= DownloadFlags.NonHtml;
+    if(lstDownload.GetItemChecked(2)) want |= DownloadFlags.ExternalResources;
+    if(lstDownload.GetItemChecked(3)) want |= DownloadFlags.PrioritizeHtml;
+    else if(lstDownload.GetItemChecked(4)) want |= DownloadFlags.PrioritizeNonHtml;
     crawler.Download = want;
     crawler.RewriteLinks = chkLinkRewrite.Checked;
     crawler.UseCookies = chkCookies.Checked;
@@ -349,11 +349,11 @@ public partial class MainForm : Form
     cmbDomainNav.SelectedItem = crawler.DomainNavigation;
     txtMaxConnections.Text = LimitToString(crawler.MaxConnections);
     txtConnsPerServer.Text = LimitToString(crawler.MaxConnectionsPerServer);
-    lstDownload.SetItemChecked(0, (crawler.Download & ResourceType.Html) != 0);
-    lstDownload.SetItemChecked(1, (crawler.Download & ResourceType.NonHtml) != 0);
-    lstDownload.SetItemChecked(2, (crawler.Download & ResourceType.ExternalResources) != 0);
-    lstDownload.SetItemChecked(3, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeHtml);
-    lstDownload.SetItemChecked(4, (crawler.Download & ResourceType.PriorityMask) == ResourceType.PrioritizeNonHtml);
+    lstDownload.SetItemChecked(0, (crawler.Download & DownloadFlags.Html) != 0);
+    lstDownload.SetItemChecked(1, (crawler.Download & DownloadFlags.NonHtml) != 0);
+    lstDownload.SetItemChecked(2, (crawler.Download & DownloadFlags.ExternalResources) != 0);
+    lstDownload.SetItemChecked(3, (crawler.Download & DownloadFlags.PriorityMask) == DownloadFlags.PrioritizeHtml);
+    lstDownload.SetItemChecked(4, (crawler.Download & DownloadFlags.PriorityMask) == DownloadFlags.PrioritizeNonHtml);
     chkLinkRewrite.Checked = crawler.RewriteLinks;
     chkCookies.Checked = crawler.UseCookies;
     chkGenerateErrorFiles.Checked = crawler.GenerateErrorFiles;
@@ -963,7 +963,7 @@ public partial class MainForm : Form
   void crawler_FilterContent(Uri url, string mimeType, ResourceType resourceType, System.Text.Encoding encoding,
                              string contentFileName)
   {
-    if(resourceType == ResourceType.Html && contentFilters.Count != 0)
+    if(resourceType != ResourceType.Binary && contentFilters.Count != 0)
     {
       string content;
       using(StreamReader reader =
