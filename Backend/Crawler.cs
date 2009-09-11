@@ -1456,6 +1456,7 @@ public sealed class Crawler : IDisposable
         CleanupRequest(); // cleanup the request from the previous iteration
 
         if(service.CurrentConnections > crawler.MaxConnectionsPerServer || // if the service has too many connections,
+           crawler.CurrentDownloadCount > crawler.MaxConnections || // or the crawler has too many connections,
            !service.TryDequeue(out resource)) // or the service has no more resources for us to process...
         {
           Disassociate();
